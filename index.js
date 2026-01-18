@@ -572,4 +572,4 @@ async function handleTicketCloseCancel(interaction) {
     });
 }
 
-client.login(config.token);
+client.login(process.env.DISCORD_TOKEN);
