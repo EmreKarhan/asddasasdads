@@ -32,6 +32,10 @@ const client = new Client({
     ]
 });
 
+// Hata yakalama
+client.on('error', console.error);
+process.on('unhandledRejection', console.error);
+
 function hasSupportPermission(member) {
     return config.ticketRoleId.some(roleId =>
         member.roles.cache.has(roleId)
@@ -82,16 +86,6 @@ client.once('ready', async () => {
         {
             name: 'ticketstats',
             description: 'Show ticket statistics'
-        },
-        {
-            name: 'forceclose',
-            description: 'Force close a ticket',
-            options: [{
-                name: 'ticket_id',
-                description: 'Ticket ID or mention channel',
-                type: 3,
-                required: true
-            }]
         }
     ];
 
@@ -103,33 +97,31 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
-    if (interaction.isChatInputCommand()) {
-        if (interaction.commandName === 'ticketpanel')
-            return handleTicketCommand(interaction);
-        if (interaction.commandName === 'logchannel')
-            return handleLogSetup(interaction);
-        if (interaction.commandName === 'resetlogs')
-            return handleLogReset(interaction);
-        if (interaction.commandName === 'ticketstats')
-            return handleTicketStats(interaction);
-        if (interaction.commandName === 'forceclose')
-            return handleForceClose(interaction);
-    }
+    try {
+        if (interaction.isChatInputCommand()) {
+            if (interaction.commandName === 'ticketpanel')
+                return handleTicketCommand(interaction);
+            if (interaction.commandName === 'logchannel')
+                return handleLogSetup(interaction);
+            if (interaction.commandName === 'resetlogs')
+                return handleLogReset(interaction);
+            if (interaction.commandName === 'ticketstats')
+                return handleTicketStats(interaction);
+        }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category')
-        return handleCategorySelection(interaction);
+        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category')
+            return handleCategorySelection(interaction);
 
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
-        return handleModalSubmit(interaction);
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
+            return handleModalSubmit(interaction);
 
-    if (interaction.isButton()) {
-        if (interaction.customId === 'close_ticket') return handleTicketClose(interaction);
-        if (interaction.customId === 'confirm_close') return handleTicketCloseConfirm(interaction);
-        if (interaction.customId === 'cancel_close') return handleTicketCloseCancel(interaction);
-        if (interaction.customId === 'transcript_ticket') return handleTranscript(interaction);
-        if (interaction.customId === 'add_user') return handleAddUser(interaction);
-        if (interaction.customId === 'lock_ticket') return handleLockTicket(interaction);
-        if (interaction.customId === 'unlock_ticket') return handleUnlockTicket(interaction);
+        if (interaction.isButton()) {
+            if (interaction.customId === 'close_ticket') return handleTicketClose(interaction);
+            if (interaction.customId === 'confirm_close') return handleTicketCloseConfirm(interaction);
+            if (interaction.customId === 'cancel_close') return handleTicketCloseCancel(interaction);
+        }
+    } catch (error) {
+        console.error('Interaction error:', error);
     }
 });
 
@@ -222,11 +214,11 @@ async function handleTicketCommand(interaction) {
             `**⚠️ IMPORTANT:** Please provide accurate information. False or incomplete details will result in immediate ticket closure.`
         )
         .setColor('#5865F2')
-        .setThumbnail('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&')
-        .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&')
+        .setThumbnail('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png')
+        .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png')
         .setFooter({ 
             text: 'RuzySoft Revolution • Premium Cheat Solutions',
-            iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&'
+            iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png'
         })
         .setTimestamp();
 
@@ -336,170 +328,226 @@ async function handleCategorySelection(interaction) {
 }
 
 async function handleModalSubmit(interaction) {
-    const categoryKey = interaction.customId.split('_')[2];
-    const category = config.categories[categoryKey];
-    const guild = interaction.guild;
-    const user = interaction.user;
+    try {
+        const categoryKey = interaction.customId.split('_')[2];
+        const category = config.categories[categoryKey];
+        const guild = interaction.guild;
+        const user = interaction.user;
 
-    const ticketId = `ticket-${Date.now().toString().slice(-6)}`;
-    const safeName = user.username.replace(/[^a-zA-Z0-9-_]/g, '');
-    const channelName = `${category.emoji}┋${safeName}-${ticketId.slice(-4)}`;
-
-    const channel = await guild.channels.create({
-        name: channelName,
-        type: ChannelType.GuildText,
-        parent: config.ticketCategoryId,
-        topic: `Ticket: ${ticketId} | User: ${user.tag} | Category: ${category.name}`,
-        permissionOverwrites: [
-            { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-            {
-                id: user.id,
-                allow: [
-                    PermissionFlagsBits.ViewChannel,
-                    PermissionFlagsBits.SendMessages,
-                    PermissionFlagsBits.ReadMessageHistory,
-                    PermissionFlagsBits.AttachFiles,
-                    PermissionFlagsBits.EmbedLinks
-                ]
-            },
-            ...config.ticketRoleId.map(r => ({
-                id: r,
-                allow: [
-                    PermissionFlagsBits.ViewChannel,
-                    PermissionFlagsBits.SendMessages,
-                    PermissionFlagsBits.ReadMessageHistory,
-                    PermissionFlagsBits.ManageMessages,
-                    PermissionFlagsBits.ManageChannels,
-                    PermissionFlagsBits.AttachFiles,
-                    PermissionFlagsBits.EmbedLinks
-                ]
-            })),
-            {
-                id: config.botId || client.user.id,
-                allow: [PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageMessages]
-            }
-        ]
-    });
-
-    ticketData[channel.id] = {
-        id: ticketId,
-        userId: user.id,
-        username: user.username,
-        userTag: user.tag,
-        category: categoryKey,
-        createdAt: Date.now(),
-        status: 'open',
-        messages: []
-    };
-
-    const ticketEmbed = new EmbedBuilder()
-        .setTitle(`${category.emoji} ${category.name} Ticket`)
-        .setDescription(
-            `**Ticket ID:** \`${ticketId}\`\n` +
-            `**User:** ${user} (${user.tag})\n` +
-            `**Category:** ${category.name}\n` +
-            `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-            `**Status:** 🟢 **OPEN**\n\n` +
-            `**📋 Ticket Information:**\n` +
-            `Our support team will assist you shortly. Please be patient.\n` +
-            `Do not ping staff members unnecessarily.\n` +
-            `Keep all discussions relevant to your issue.`
-        )
-        .setColor('#5865F2')
-        .setThumbnail(user.displayAvatarURL({ dynamic: true }))
-        .setFooter({ 
-            text: 'RuzySoft Premium Support • Use buttons below to manage ticket',
-            iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&'
-        })
-        .setTimestamp();
-
-    let questions = [];
-    switch (categoryKey) {
-        case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
-        case 'support': questions = ['Username', 'Related Product/Service', 'Issue Description']; break;
-        case 'reseller': questions = ['Username', 'Business Name', 'Monthly Sales Estimate', 'Previous Experience']; break;
-        case 'media': questions = ['Social Media Profile', 'Username', 'Video URL', 'Collaboration Proposal']; break;
-        case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
-    }
-
-    for (let i = 0; i < questions.length; i++) {
-        const answer = interaction.fields.getTextInputValue(`question_${i}`);
-        if (!answer) continue;
-
-        ticketEmbed.addFields({
-            name: `📝 ${questions[i]}`,
-            value: `\`\`\`${answer}\`\`\``,
-            inline: i < 2
+        // İlk mesaj
+        await interaction.reply({
+            content: '🔄 Creating your ticket...',
+            flags: MessageFlags.Ephemeral
         });
-    }
 
-    const buttonRow1 = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId('close_ticket')
-                .setLabel('🔒 Close')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('🔒'),
-            new ButtonBuilder()
-                .setCustomId('lock_ticket')
-                .setLabel('🔐 Lock')
-                .setStyle(ButtonStyle.Secondary)
-                .setEmoji('🔐'),
-            new ButtonBuilder()
-                .setCustomId('add_user')
-                .setLabel('➕ Add User')
-                .setStyle(ButtonStyle.Success)
-                .setEmoji('➕'),
-            new ButtonBuilder()
-                .setCustomId('transcript_ticket')
-                .setLabel('📄 Transcript')
-                .setStyle(ButtonStyle.Primary)
-                .setEmoji('📄')
-        );
+        const ticketId = `ticket-${Date.now().toString().slice(-6)}`;
+        const safeName = user.username.replace(/[^a-zA-Z0-9-_]/g, '');
+        const channelName = `${category.emoji}-${safeName}`;
 
-    const welcomeEmbed = new EmbedBuilder()
-        .setTitle('👋 Welcome to Your Support Ticket!')
-        .setDescription(
-            `Hello ${user},\n\n` +
-            `Thank you for contacting **RuzySoft Premium Support**.\n` +
-            `Our team has been notified and will assist you shortly.\n\n` +
-            `**Please provide:**\n` +
-            `• Detailed description of your issue\n` +
-            `• Relevant screenshots/videos\n` +
-            `• Any error messages received\n\n` +
-            `⚠️ **Do not share your product key or sensitive information publicly!**`
-        )
-        .setColor('#00ff88')
-        .setTimestamp();
+        // 1. ÖNCE KANALI OLUŞTUR (sadece temel ayarlarla)
+        const channel = await guild.channels.create({
+            name: channelName.substring(0, 100), // Discord max 100 karakter
+            type: ChannelType.GuildText,
+            parent: config.ticketCategoryId || null,
+            topic: `Ticket ID: ${ticketId}`,
+            reason: `Ticket created by ${user.tag}`
+        });
 
-    await channel.send({ content: `${user}, welcome to your ticket!`, embeds: [welcomeEmbed] });
-    await channel.send({ 
-        content: `${user} ${config.ticketRoleId.map(r => `<@&${r}>`).join(' ')}`,
-        embeds: [ticketEmbed],
-        components: [buttonRow1]
-    });
+        console.log(`Channel created: ${channel.id}`);
 
-    await interaction.reply({
-        content: `✅ Ticket created: ${channel}`,
-        flags: MessageFlags.Ephemeral
-    });
+        // 2. VERİLERİ KAYDET
+        ticketData[channel.id] = {
+            id: ticketId,
+            userId: user.id,
+            username: user.username,
+            userTag: user.tag,
+            category: categoryKey,
+            createdAt: Date.now(),
+            status: 'open',
+            channelId: channel.id
+        };
 
-    if (config.logChannelId) {
-        const logChannel = guild.channels.cache.get(config.logChannelId);
-        if (logChannel) {
-            const logEmbed = new EmbedBuilder()
-                .setTitle('🎫 New Ticket Created')
-                .setColor('#00ff88')
-                .addFields(
-                    { name: 'Ticket ID', value: ticketId, inline: true },
-                    { name: 'User', value: `${user.tag} (${user.id})`, inline: true },
-                    { name: 'Category', value: category.name, inline: true },
-                    { name: 'Channel', value: channel.toString(), inline: true },
-                    { name: 'Created', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+        // 3. İZİNLERİ AYARLA (SIRALI ve BASİT)
+        const everyone = guild.id;
+        const bot = client.user.id;
+
+        // a) @everyone için ViewChannel'ı kapat
+        await channel.permissionOverwrites.create(everyone, {
+            ViewChannel: false
+        });
+
+        // b) Bot'a gerekli izinleri ver
+        await channel.permissionOverwrites.create(bot, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true,
+            ManageMessages: true,
+            ManageChannels: true
+        });
+
+        // c) Kullanıcıya izin ver
+        await channel.permissionOverwrites.create(user.id, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true,
+            AttachFiles: true
+        });
+
+        // d) Staff rollerine izin ver
+        if (config.ticketRoleId && Array.isArray(config.ticketRoleId)) {
+            for (const roleId of config.ticketRoleId) {
+                try {
+                    const role = await guild.roles.fetch(roleId);
+                    if (role) {
+                        await channel.permissionOverwrites.create(roleId, {
+                            ViewChannel: true,
+                            SendMessages: true,
+                            ReadMessageHistory: true,
+                            ManageMessages: true
+                        });
+                    }
+                } catch (roleError) {
+                    console.log(`Could not add role ${roleId}:`, roleError.message);
+                }
+            }
+        }
+
+        // 4. TICKET EMBED'İ OLUŞTUR
+        const ticketEmbed = new EmbedBuilder()
+            .setTitle(`${category.emoji} ${category.name} Ticket`)
+            .setDescription(
+                `**Ticket ID:** \`${ticketId}\`\n` +
+                `**User:** ${user} (${user.tag})\n` +
+                `**Category:** ${category.name}\n` +
+                `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+                `**Status:** 🟢 **OPEN**\n\n` +
+                `**📋 Ticket Information:**\n` +
+                `Our support team will assist you shortly. Please be patient.`
+            )
+            .setColor('#5865F2')
+            .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+            .setFooter({ 
+                text: 'RuzySoft Premium Support',
+                iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png'
+            })
+            .setTimestamp();
+
+        // 5. SORU-CEVAPLARI EKLE
+        let questions = [];
+        switch (categoryKey) {
+            case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
+            case 'support': questions = ['Username', 'Related Product/Service', 'Issue Description']; break;
+            case 'reseller': questions = ['Username', 'Business Name', 'Monthly Sales Estimate', 'Previous Experience']; break;
+            case 'media': questions = ['Social Media Profile', 'Username', 'Video URL', 'Collaboration Proposal']; break;
+            case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
+        }
+
+        for (let i = 0; i < questions.length; i++) {
+            const answer = interaction.fields.getTextInputValue(`question_${i}`);
+            if (answer && answer.trim()) {
+                ticketEmbed.addFields({
+                    name: `📝 ${questions[i]}`,
+                    value: `\`\`\`${answer.substring(0, 500)}\`\`\``,
+                    inline: i < 2
+                });
+            }
+        }
+
+        // 6. BUTONLARI OLUŞTUR
+        const buttonRow = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('close_ticket')
+                    .setLabel('🔒 Close Ticket')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+        // 7. MESAJ GÖNDER
+        try {
+            // Welcome mesajı
+            const welcomeEmbed = new EmbedBuilder()
+                .setTitle('👋 Welcome to Your Support Ticket!')
+                .setDescription(
+                    `Hello ${user},\n\n` +
+                    `Thank you for contacting **RuzySoft Premium Support**.\n` +
+                    `Our team has been notified and will assist you shortly.\n\n` +
+                    `**Please provide:**\n` +
+                    `• Detailed description of your issue\n` +
+                    `• Relevant screenshots/videos\n` +
+                    `• Any error messages received\n\n` +
+                    `⚠️ **Do not share your product key or sensitive information publicly!**`
                 )
+                .setColor('#00ff88')
                 .setTimestamp();
-            
-            await logChannel.send({ embeds: [logEmbed] });
+
+            await channel.send({ embeds: [welcomeEmbed] });
+
+            // Ana ticket mesajı
+            let mentionText = '';
+            if (config.ticketRoleId && config.ticketRoleId.length > 0) {
+                mentionText = config.ticketRoleId.map(r => `<@&${r}>`).join(' ');
+            }
+
+            await channel.send({
+                content: `${user} ${mentionText}`,
+                embeds: [ticketEmbed],
+                components: [buttonRow]
+            });
+
+            // 8. İLK MESAJI GÜNCELLE
+            await interaction.editReply({
+                content: `✅ Ticket created successfully: ${channel}`
+            });
+
+            // 9. LOG KANALINA BİLDİR
+            if (config.logChannelId && config.logChannelId !== "") {
+                try {
+                    const logChannel = guild.channels.cache.get(config.logChannelId);
+                    if (logChannel) {
+                        const logEmbed = new EmbedBuilder()
+                            .setTitle('🎫 New Ticket Created')
+                            .setColor('#00ff88')
+                            .addFields(
+                                { name: 'Ticket ID', value: ticketId, inline: true },
+                                { name: 'User', value: `${user.tag}`, inline: true },
+                                { name: 'Category', value: category.name, inline: true },
+                                { name: 'Channel', value: channel.toString(), inline: true }
+                            )
+                            .setTimestamp();
+                        
+                        await logChannel.send({ embeds: [logEmbed] });
+                    }
+                } catch (logError) {
+                    console.log('Log error (non-critical):', logError.message);
+                }
+            }
+
+        } catch (sendError) {
+            console.error('Error sending messages:', sendError);
+            await interaction.editReply({
+                content: `✅ Ticket created but there was an error sending messages: ${sendError.message}`
+            });
+        }
+
+    } catch (error) {
+        console.error('Fatal error in handleModalSubmit:', error);
+        
+        let errorMsg = '❌ Error creating ticket! ';
+        if (error.code === 50013) {
+            errorMsg += 'Bot lacks permissions. Please make sure bot has: Manage Channels, Manage Roles, Manage Messages permissions.';
+        } else if (error.code === 50001) {
+            errorMsg += 'Bot cannot access the channel.';
+        } else {
+            errorMsg += error.message;
+        }
+
+        if (interaction.replied || interaction.deferred) {
+            await interaction.editReply({ content: errorMsg });
+        } else {
+            await interaction.reply({ 
+                content: errorMsg,
+                flags: MessageFlags.Ephemeral 
+            });
         }
     }
 }
@@ -510,17 +558,16 @@ async function handleTicketClose(interaction) {
 
     if (!ticket) {
         return interaction.reply({
-            content: '❌ This is not a valid ticket channel!',
+            content: '❌ This is not a ticket channel!',
             flags: MessageFlags.Ephemeral
         });
     }
 
-    const member = interaction.member;
+    const isStaff = hasSupportPermission(interaction.member);
     const isOwner = interaction.user.id === config.ownerId;
-    const isStaff = hasSupportPermission(member);
     const isTicketOwner = interaction.user.id === ticket.userId;
 
-    if (!isOwner && !isStaff && !isTicketOwner) {
+    if (!isStaff && !isOwner && !isTicketOwner) {
         return interaction.reply({
             content: '❌ You do not have permission to close this ticket!',
             flags: MessageFlags.Ephemeral
@@ -533,7 +580,7 @@ async function handleTicketClose(interaction) {
             `Are you sure you want to close this ticket?\n\n` +
             `**Ticket ID:** ${ticket.id}\n` +
             `**User:** <@${ticket.userId}>\n\n` +
-            `⚠️ A transcript will be generated and sent to the logs.`
+            `⚠️ Channel will be deleted after closing.`
         )
         .setColor('#ff9900')
         .setTimestamp();
@@ -564,92 +611,38 @@ async function handleTicketCloseConfirm(interaction) {
     if (!ticket) return;
 
     await interaction.update({
-        content: '🔄 Closing ticket and generating transcript...',
+        content: '🔄 Closing ticket...',
         embeds: [],
         components: []
     });
 
     try {
-        const messages = await channel.messages.fetch({ limit: 100 });
-        const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-        
-        let transcript = `╔══════════════════════════════════════════════════╗\n`;
-        transcript += `║              RuzYSoft Ticket Transcript              ║\n`;
-        transcript += `╠══════════════════════════════════════════════════╣\n`;
-        transcript += `║ Ticket ID: ${ticket.id}\n`;
-        transcript += `║ User: ${ticket.userTag} (${ticket.userId})\n`;
-        transcript += `║ Category: ${config.categories[ticket.category].name}\n`;
-        transcript += `║ Created: ${new Date(ticket.createdAt).toLocaleString()}\n`;
-        transcript += `║ Closed: ${new Date().toLocaleString()}\n`;
-        transcript += `║ Closed by: ${interaction.user.tag} (${interaction.user.id})\n`;
-        transcript += `╚══════════════════════════════════════════════════╝\n\n`;
-        
-        sortedMessages.forEach(msg => {
-            const timestamp = msg.createdAt.toLocaleString();
-            const author = msg.author.tag;
-            const content = msg.content || '[Attachment/Embed]';
-            
-            transcript += `[${timestamp}] ${author}: ${content}\n`;
-            if (msg.attachments.size > 0) {
-                msg.attachments.forEach(att => {
-                    transcript += `       📎 Attachment: ${att.url}\n`;
-                });
-            }
-        });
-        
-        const transcriptBuffer = Buffer.from(transcript, 'utf-8');
-        const attachment = new AttachmentBuilder(transcriptBuffer, { 
-            name: `ticket-${ticket.id}-transcript.txt` 
-        });
-        
-        const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
+        // Simple close embed
         const closeEmbed = new EmbedBuilder()
             .setTitle('🔒 Ticket Closed')
             .setDescription(
                 `This ticket has been closed by ${interaction.user}\n\n` +
-                `**Duration:** ${duration} minutes\n` +
-                `**Transcript:** Generated and sent to logs\n\n` +
-                `*Channel will be deleted in 10 seconds...*`
+                `*Channel will be deleted in 5 seconds...*`
             )
             .setColor('#ff0000')
             .setTimestamp();
         
         await channel.send({ embeds: [closeEmbed] });
         
-        if (config.logChannelId) {
-            const logChannel = channel.guild.channels.cache.get(config.logChannelId);
-            if (logChannel) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('📋 Ticket Closed')
-                    .setColor('#ff0000')
-                    .addFields(
-                        { name: 'Ticket ID', value: ticket.id, inline: true },
-                        { name: 'User', value: `<@${ticket.userId}>`, inline: true },
-                        { name: 'Category', value: config.categories[ticket.category].name, inline: true },
-                        { name: 'Opened', value: `<t:${Math.floor(ticket.createdAt / 1000)}:R>`, inline: true },
-                        { name: 'Duration', value: `${duration} minutes`, inline: true },
-                        { name: 'Closed by', value: interaction.user.tag, inline: true }
-                    )
-                    .setTimestamp();
-                
-                await logChannel.send({ 
-                    embeds: [logEmbed],
-                    files: [attachment]
-                });
-            }
-        }
-        
+        // Update ticket data
         ticket.status = 'closed';
         ticket.closedAt = Date.now();
         ticket.closedBy = interaction.user.id;
         
+        // Wait and delete
         setTimeout(async () => {
             try {
                 await channel.delete('Ticket closed');
-            } catch (error) {
-                console.error('Error deleting channel:', error);
+                delete ticketData[channel.id];
+            } catch (deleteError) {
+                console.error('Error deleting channel:', deleteError);
             }
-        }, 10000);
+        }, 5000);
         
     } catch (error) {
         console.error('Error closing ticket:', error);
@@ -667,195 +660,5 @@ async function handleTicketCloseCancel(interaction) {
         components: []
     });
 }
-
-async function handleTranscript(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
-    const channel = interaction.channel;
-    const ticket = ticketData[channel.id];
-    
-    if (!ticket) {
-        return interaction.editReply('❌ This is not a ticket channel!');
-    }
-    
-    try {
-        const messages = await channel.messages.fetch({ limit: 50 });
-        let transcript = `Transcript for ticket ${ticket.id}\n`;
-        transcript += `User: ${ticket.userTag}\n`;
-        transcript += `Generated: ${new Date().toLocaleString()}\n\n`;
-        
-        messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-            .forEach(msg => {
-                transcript += `[${msg.createdAt.toLocaleTimeString()}] ${msg.author.username}: ${msg.content}\n`;
-            });
-        
-        const buffer = Buffer.from(transcript, 'utf-8');
-        const attachment = new AttachmentBuilder(buffer, { 
-            name: `transcript-${ticket.id}.txt` 
-        });
-        
-        await interaction.editReply({
-            content: '📄 Here is your ticket transcript:',
-            files: [attachment]
-        });
-    } catch (error) {
-        await interaction.editReply('❌ Error generating transcript!');
-    }
-}
-
-async function handleForceClose(interaction) {
-    if (interaction.user.id !== config.ownerId && !hasSupportPermission(interaction.member)) {
-        return interaction.reply({
-            content: '❌ Only staff can force close tickets!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    const identifier = interaction.options.getString('ticket_id');
-    
-    let targetChannel;
-    if (identifier.startsWith('<#')) {
-        const channelId = identifier.slice(2, -1);
-        targetChannel = interaction.guild.channels.cache.get(channelId);
-    } else {
-        targetChannel = Object.keys(ticketData).find(chId => 
-            ticketData[chId].id === identifier
-        );
-        if (targetChannel) {
-            targetChannel = interaction.guild.channels.cache.get(targetChannel);
-        }
-    }
-    
-    if (!targetChannel || !ticketData[targetChannel.id]) {
-        return interaction.reply({
-            content: '❌ Ticket not found!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    const ticket = ticketData[targetChannel.id];
-    const closeEmbed = new EmbedBuilder()
-        .setTitle('🔒 Ticket Force Closed')
-        .setDescription(`Ticket was force closed by ${interaction.user}`)
-        .setColor('#ff0000')
-        .setTimestamp();
-    
-    await targetChannel.send({ embeds: [closeEmbed] });
-    
-    setTimeout(async () => {
-        try {
-            await targetChannel.delete('Force closed by staff');
-        } catch (error) {
-            console.error('Error deleting channel:', error);
-        }
-    }, 5000);
-    
-    await interaction.reply({
-        content: `✅ Ticket ${ticket.id} force closed!`,
-        flags: MessageFlags.Ephemeral
-    });
-}
-
-async function handleAddUser(interaction) {
-    if (!hasSupportPermission(interaction.member)) {
-        return interaction.reply({
-            content: '❌ Only staff can add users to tickets!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    // You can implement a modal or selection menu here for adding users
-    await interaction.reply({
-        content: '👤 Feature: Add user to ticket\n\nComing soon!',
-        flags: MessageFlags.Ephemeral
-    });
-}
-
-async function handleLockTicket(interaction) {
-    if (!hasSupportPermission(interaction.member)) {
-        return interaction.reply({
-            content: '❌ Only staff can lock tickets!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    const channel = interaction.channel;
-    const ticket = ticketData[channel.id];
-    
-    if (!ticket) {
-        return interaction.reply({
-            content: '❌ This is not a ticket channel!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    await channel.permissionOverwrites.edit(ticket.userId, {
-        SendMessages: false
-    });
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🔒 Ticket Locked')
-        .setDescription(`This ticket has been locked by ${interaction.user}`)
-        .setColor('#ff9900')
-        .setTimestamp();
-    
-    await channel.send({ embeds: [embed] });
-    await interaction.reply({
-        content: '✅ Ticket locked!',
-        flags: MessageFlags.Ephemeral
-    });
-}
-
-async function handleUnlockTicket(interaction) {
-    if (!hasSupportPermission(interaction.member)) {
-        return interaction.reply({
-            content: '❌ Only staff can unlock tickets!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    const channel = interaction.channel;
-    const ticket = ticketData[channel.id];
-    
-    if (!ticket) {
-        return interaction.reply({
-            content: '❌ This is not a ticket channel!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    await channel.permissionOverwrites.edit(ticket.userId, {
-        SendMessages: true
-    });
-    
-    const embed = new EmbedBuilder()
-        .setTitle('🔓 Ticket Unlocked')
-        .setDescription(`This ticket has been unlocked by ${interaction.user}`)
-        .setColor('#00ff88')
-        .setTimestamp();
-    
-    await channel.send({ embeds: [embed] });
-    await interaction.reply({
-        content: '✅ Ticket unlocked!',
-        flags: MessageFlags.Ephemeral
-    });
-}
-
-client.on(Events.MessageCreate, async message => {
-    if (message.author.bot) return;
-    
-    const channel = message.channel;
-    const ticket = ticketData[channel.id];
-    
-    if (ticket && ticket.status === 'open') {
-        ticket.messages.push({
-            id: message.id,
-            author: message.author.tag,
-            content: message.content,
-            timestamp: message.createdTimestamp,
-            attachments: message.attachments.map(a => a.url)
-        });
-    }
-});
 
 client.login(process.env.DISCORD_TOKEN);
