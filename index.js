@@ -573,3 +573,5 @@ async function handleTicketCloseCancel(interaction) {
 }
 
 client.login(process.env.DISCORD_TOKEN);
+console.log("DISCORD_TOKEN VAR MI:", Boolean(process.env.DISCORD_TOKEN));
+console.log("TOKEN LENGTH:", process.env.DISCORD_TOKEN?.length);
