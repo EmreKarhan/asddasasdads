@@ -222,11 +222,11 @@ async function handleTicketCommand(interaction) {
             `**⚠️ IMPORTANT:** Please provide accurate information. False or incomplete details will result in immediate ticket closure.`
         )
         .setColor('#5865F2')
-        .setThumbnail('https://cdn.discordapp.com/attachments/1337564450600910858/1460716091327254629/0b8e5a2c-1eff-414c-858c-b8af487e6111.png')
-        .setImage('https://media.discordapp.net/attachments/1337564450600910858/1460731600479453355/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png')
+        .setThumbnail('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&')
+        .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&')
         .setFooter({ 
             text: 'RuzySoft Revolution • Premium Cheat Solutions',
-            iconURL: 'https://cdn.discordapp.com/attachments/1337564450600910858/1460716091327254629/0b8e5a2c-1eff-414c-858c-b8af487e6111.png'
+            iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&'
         })
         .setTimestamp();
 
@@ -409,7 +409,7 @@ async function handleModalSubmit(interaction) {
         .setThumbnail(user.displayAvatarURL({ dynamic: true }))
         .setFooter({ 
             text: 'RuzySoft Premium Support • Use buttons below to manage ticket',
-            iconURL: 'https://cdn.discordapp.com/attachments/1337564450600910858/1460716091327254629/0b8e5a2c-1eff-414c-858c-b8af487e6111.png'
+            iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png?ex=696d851c&is=696c339c&hm=6cf1cf227a013e3da5a8a89801d8886ea639e9d26ae1c8403cc10425d888d931&'
         })
         .setTimestamp();
 
