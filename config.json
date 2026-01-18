@@ -1,44 +1,41 @@
+
 {
-  "guildId": "1462207490719748250",
-  "ownerId": "741753240827461672",
-  "ticketRoleId": [
-    "1462207491063419108",
-    "1462207491063419106",
-    "1462207491063419105"
-  ],
-  "ticketCategoryId": "1462216751247786005",
-  "logChannelId": "1462207492749660219",
-  "categories": {
-    "payment": {
-      "name": "Payments",
-      "description": "Billing, purchases & payment support.",
-      "emoji": "💳"
-    },
-    "support": {
-      "name": "Support",
-      "description": "Product help & technical assistance.",
-      "emoji": "💬"
-    },
-    "reseller": {
-      "name": "Reseller",
-      "description": "Apply for reseller partnership.",
-      "emoji": "🤝"
-    },
-    "media": {
-      "name": "Media",
-      "description": "Creator & promoter applications.",
-      "emoji": "📺"
-    },
-    "hwid": {
-      "name": "🔧 HWID Reset",
-      "description": "Reset your hardware identification.",
-      "emoji": "🔧"
+    "ownerId": "741753240827461672",
+    "guildId": "1462207490719748250",
+    "botId": "1460673440515362963",
+    "ticketCategoryId": "1462216751247786005",
+    "ticketRoleId": [
+      "1462207491063419108",
+      "1462207491063419106",
+      "1462207491063419105"
+    ],
+    "logChannelId": "1462207492749660219",
+    "embedColor": "#5865F2",
+    "categories": {
+        "payment": {
+            "name": "Payment Issue",
+            "description": "Payment, refund, or purchase problems",
+            "emoji": "💳"
+        },
+        "support": {
+            "name": "Technical Support",
+            "description": "Cheat setup, errors, or technical issues",
+            "emoji": "🛠️"
+        },
+        "reseller": {
+            "name": "Reseller Application",
+            "description": "Apply to become a reseller",
+            "emoji": "🤝"
+        },
+        "media": {
+            "name": "Media/Partnership",
+            "description": "Collaborations and promotions",
+            "emoji": "📺"
+        },
+        "hwid": {
+            "name": "HWID Reset",
+            "description": "Request HWID reset for cheat",
+            "emoji": "🔄"
+        }
     }
-  },
-  "embedColor": "#7c3aed",
-  "supportMessage": {
-    "title": "🎫 Create a Ticket",
-    "description": "Choose the **appropriate category** to get started.\n\n• One ticket per category\n• No spam or unnecessary pings\n• Please be patient while we assist you\n• Reseller purchases are handled by the reseller\n\n**Support Online**\n<@&1460720542897279319>",
-    "footer": "RuzySoft Tickets"
-  }
 }
