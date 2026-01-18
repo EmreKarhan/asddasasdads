@@ -1,4 +1,9 @@
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionFlagsBits, ChannelType, ButtonBuilder, ButtonStyle, AttachmentBuilder, MessageFlags } = require('discord.js');
+const {Client,GatewayIntentBits,EmbedBuilder,ActionRowBuilder,StringSelectMenuBuilder,ModalBuilder,TextInputBuilder,TextInputStyle,PermissionFlagsBits,ChannelType,ButtonBuilder,ButtonStyle,AttachmentBuilder,MessageFlags} = require('discord.js');
+
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
+
+let ticketData = {};
 
 const client = new Client({
     intents: [
@@ -9,20 +14,6 @@ const client = new Client({
     ]
 });
 
-// Config'leri çevre değişkenlerinden al
-const config = {
-    token: process.env.BOT_TOKEN,
-    guildId: process.env.GUILD_ID,
-    ownerId: process.env.OWNER_ID,
-    ticketRoleId: process.env.TICKET_ROLE_IDS ? process.env.TICKET_ROLE_IDS.split(',') : [],
-    ticketCategoryId: process.env.TICKET_CATEGORY_ID,
-    logChannelId: process.env.LOG_CHANNEL_ID || "",
-    categories: JSON.parse(process.env.CATEGORIES || '{}'),
-    embedColor: process.env.EMBED_COLOR || '#7c3aed'
-};
-
-let ticketData = {};
-
 function hasSupportPermission(member) {
     return config.ticketRoleId.some(roleId =>
         member.roles.cache.has(roleId)
@@ -31,12 +22,12 @@ function hasSupportPermission(member) {
 
 client.once('ready', async () => {
     console.log(`✅ Bot ${client.user.tag} olarak giriş yaptı!`);
-    
+
     const guild = client.guilds.cache.get(config.guildId);
     if (!guild) return;
 
     await guild.commands.set([]);
-    
+
     await guild.commands.create({
         name: 'ticketcreate',
         description: 'Sends the ticket panel to the selected channel',
@@ -44,12 +35,12 @@ client.once('ready', async () => {
             {
                 name: 'kanal',
                 description: 'Channel to which the ticket panel will be sent',
-                type: 7,
+                type: 7, // CHANNEL
                 required: true
             }
         ]
     });
-    
+
     await guild.commands.create({
         name: 'logayarla',
         description: 'Configure the log channel',
@@ -60,12 +51,12 @@ client.once('ready', async () => {
             required: true
         }]
     });
-    
+
     await guild.commands.create({
         name: 'logsıfırla',
         description: 'Resets the log channel'
     });
-    
+
     console.log('✅ Slash commands loaded!');
 });
 
