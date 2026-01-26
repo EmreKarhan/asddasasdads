@@ -270,7 +270,7 @@ async function handleTicketCommand(interaction) {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle('<:greenplayer:1465424166303039711> RuzySoft | Tickets')
+            .setTitle('<:greenplayer:1465424166303039711> RuzySoft | Ticket')
             .setDescription(
                 `Need help or have a request? Please create a ticket using the buttons below.\n\n` +
                 `- Support is handled by authorized staff only\n` +
@@ -288,7 +288,7 @@ async function handleTicketCommand(interaction) {
 
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('ticket_category')
-            .setPlaceholder('🎯 Select a category')
+            .setPlaceholder('🎟️ Create Ticket')
             .setMaxValues(1)
             .addOptions(
                 Object.entries(config.categories).map(([key, c]) => ({
@@ -416,7 +416,6 @@ async function handleModalSubmit(interaction) {
         const guild = interaction.guild;
         const user = interaction.user;
 
-        // Initial message
         await interaction.reply({
             content: '🔄 Creating your ticket...',
             flags: MessageFlags.Ephemeral
@@ -427,8 +426,7 @@ async function handleModalSubmit(interaction) {
         const channelName = `${category.emoji}-${safeName}`;
 
         console.log(`Creating ticket for ${user.tag} with ID: ${ticketId}`);
-
-        // 1. CREATE CHANNEL
+        
         const channel = await guild.channels.create({
             name: channelName,
             type: ChannelType.GuildText,
@@ -468,8 +466,6 @@ async function handleModalSubmit(interaction) {
                 AttachFiles: true,
                 EmbedLinks: true
             });
-
-            // Give permissions to user
             await channel.permissionOverwrites.edit(user.id, {
                 ViewChannel: true,
                 SendMessages: true,
@@ -507,18 +503,13 @@ async function handleModalSubmit(interaction) {
                 `**Ticket ID:** \`${ticketId}\`\n` +
                 `**User:** ${user} (${user.tag})\n` +
                 `**Category:** ${category.name}\n` +
-                `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-                `**Status:** 🟢 **OPEN**\n\n` +
-                `**📋 Ticket Information:**\n` +
-                `• Our support team will assist you shortly\n` +
-                `• Only staff members can close tickets\n` +
-                `• Please be patient and provide necessary details`
+                `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n` 
             )
             .setColor('#5865F2')
             .setThumbnail(user.displayAvatarURL({ dynamic: true }))
             .setFooter({ 
-                text: 'RuzySoft Premium Support • Staff only can close',
-                iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png'
+                text: 'RuzySoft Ticket System',
+                iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462402361761730602/391a9977-1ccc-4749-be4c-f8cdfd572f6e.png?ex=69794495&is=6977f315&hm=118716f91fb096884344f1cec26935b52e6907ee5aa4cb1effe6fb946260950b&'
             })
             .setTimestamp();
 
@@ -548,7 +539,7 @@ async function handleModalSubmit(interaction) {
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('close_ticket')
-                    .setLabel('🔒 Close (Staff Only)')
+                    .setLabel('Close Ticket')
                     .setStyle(ButtonStyle.Danger)
                     .setEmoji('🔒')
             );
@@ -557,36 +548,30 @@ async function handleModalSubmit(interaction) {
         try {
             // Welcome message
             const welcomeEmbed = new EmbedBuilder()
-                .setTitle('👋 Welcome to Your Support Ticket!')
+                .setTitle('👋 Welcome to ${user}!')
                 .setDescription(
-                    `Hello ${user},\n\n` +
-                    `Thank you for contacting **RuzySoft Premium Support**.\n` +
+                    `Thank you for contacting **RuzySoft Support**.\n` +
                     `Our team will assist you shortly.\n\n` +
                     `**Please provide:**\n` +
-                    `• Detailed description\n` +
-                    `• Screenshots if needed\n` +
-                    `• Error messages\n\n` +
+                    `- Detailed description\n` +
+                    `- Screenshots if needed\n` +
+                    `- Error messages\n\n` +
                     `⚠️ **Do not share your product key publicly!**`
                 )
-                .setColor('#00ff88')
                 .setTimestamp();
 
             await channel.send({ embeds: [welcomeEmbed] });
 
-            // Staff mention
             let mentionText = '';
             if (config.ticketRoleId && config.ticketRoleId.length > 0) {
                 mentionText = config.ticketRoleId.map(r => `<@&${r}>`).join(' ');
             }
-
-            // Main ticket message
             await channel.send({
                 content: `${user} ${mentionText}`,
                 embeds: [ticketEmbed],
                 components: [buttonRow]
             });
 
-            // 8. UPDATE USER
             await interaction.editReply({
                 content: `✅ Ticket created: ${channel}`
             });
@@ -683,7 +668,7 @@ async function handleTicketClose(interaction) {
         }
 
         const confirmEmbed = new EmbedBuilder()
-            .setTitle('🔒 Confirm Ticket Closure')
+            .setTitle('Confirm Ticket Closure')
             .setDescription(
                 `**Staff Member:** ${interaction.user}\n` +
                 `**Ticket ID:** ${ticket.id}\n` +
@@ -765,7 +750,7 @@ async function handleTicketCloseConfirm(interaction) {
             const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
             
             let transcript = `╔══════════════════════════════════════════════════╗\n`;
-            transcript += `║              RuzYSoft Ticket Transcript              ║\n`;
+            transcript += `║               RuzySoft Ticket Log                ║\n`;
             transcript += `╠══════════════════════════════════════════════════╣\n`;
             transcript += `║ Ticket ID: ${ticket.id}\n`;
             transcript += `║ User: ${ticket.userTag} (${ticket.userId})\n`;
@@ -797,7 +782,7 @@ async function handleTicketCloseConfirm(interaction) {
             
             // Notification to ticket channel
             const closeEmbed = new EmbedBuilder()
-                .setTitle('🔒 Ticket Closed by Staff')
+                .setTitle('Ticket Closed')
                 .setDescription(
                     `**Closed by:** ${interaction.user}\n` +
                     `**Ticket ID:** ${ticket.id}\n` +
@@ -807,7 +792,7 @@ async function handleTicketCloseConfirm(interaction) {
                 )
                 .setColor('#ff0000')
                 .setFooter({ 
-                    text: 'RuzySoft Ticket System - Staff Action',
+                    text: 'RuzySoft Ticket System',
                     iconURL: interaction.user.displayAvatarURL({ dynamic: true })
                 })
                 .setTimestamp();
@@ -820,8 +805,7 @@ async function handleTicketCloseConfirm(interaction) {
                     const logChannel = channel.guild.channels.cache.get(config.logChannelId);
                     if (logChannel) {
                         const logEmbed = new EmbedBuilder()
-                            .setTitle('📋 Ticket Closed by Staff')
-                            .setColor('#ff0000')
+                            .setTitle('📋 Ticket Closed')
                             .addFields(
                                 { name: 'Ticket ID', value: ticket.id, inline: true },
                                 { name: 'User', value: `<@${ticket.userId}>`, inline: true },
