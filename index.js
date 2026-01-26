@@ -272,17 +272,16 @@ async function handleTicketCommand(interaction) {
         const embed = new EmbedBuilder()
             .setTitle('<:greenplayer:1465424166303039711> RuzySoft | Tickets')
             .setDescription(
-                `Your tickets will be automatically closed if they do not comply with the rules.\n\n` +
-                `- Need assistance with our premium cheats? Create a ticket below!\n` +
-                `- Your privacy and security are our top priority.\n` +
-                `- Average response time: **5-15 minutes**\n\n` +
-                `**⚠️ IMPORTANT:** Please provide accurate information. False or incomplete details will result in immediate ticket closure.`
+                `Need help or have a request? Please create a ticket using the buttons below.\n\n` +
+                `- Support is handled by authorized staff only\n` +
+                `- All tickets are private and secure\n` +
+                `- Please explain your issue clearly\n\n` +
+                `**⚠️ **Important:** Tickets opened with false, incomplete, or irrelevant information will be closed without notice.`
             )
-            .setColor('#5865F2')
             .setThumbnail('https://cdn.discordapp.com/attachments/1462207492275572883/1462402361761730602/391a9977-1ccc-4749-be4c-f8cdfd572f6e.png?ex=69794495&is=6977f315&hm=118716f91fb096884344f1cec26935b52e6907ee5aa4cb1effe6fb946260950b&')
-            .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1462253410752659647/6e357873-fb9e-43a5-94fe-ccbaa12c56e2.png')
+            .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&')
             .setFooter({ 
-                text: 'RuzySoft - Ticket Bot',
+                text: 'RuzySoft • Ticket System',
                 iconURL: 'https://cdn.discordapp.com/attachments/1462207492275572883/1462402361761730602/391a9977-1ccc-4749-be4c-f8cdfd572f6e.png?ex=69794495&is=6977f315&hm=118716f91fb096884344f1cec26935b52e6907ee5aa4cb1effe6fb946260950b&'
             })
             .setTimestamp();
