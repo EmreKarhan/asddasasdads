@@ -13,7 +13,9 @@ const {
     AttachmentBuilder,
     MessageFlags,
     Events,
-    ActivityType
+    ActivityType,
+    Attachment,
+    MessageMentions
 } = require('discord.js');
 
 const fs = require('fs');
@@ -45,12 +47,10 @@ function hasSupportPermission(member) {
         return false;
     }
     
-    // Server owner check
     if (member.id === config.ownerId) {
         return true;
     }
     
-    // Check if member has any support role
     return config.ticketRoleId.some(roleId => {
         if (!roleId || typeof roleId !== 'string') return false;
         return member.roles.cache.has(roleId);
@@ -149,19 +149,21 @@ client.on('interactionCreate', async interaction => {
                 return await handleCloseCommand(interaction);
         }
 
-        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category')
-            return await handleCategorySelection(interaction);
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'ticket_category')
+                return await handleCategorySelection(interaction);
+        }
 
         if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
             return await handleModalSubmit(interaction);
 
         if (interaction.isButton()) {
-            if (interaction.customId === 'create_ticket') return await handleCategorySelection(interaction);
+            if (interaction.customId === 'create_ticket') return await handleCreateTicketButton(interaction);
             if (interaction.customId === 'close_ticket') return await handleTicketClose(interaction);
             if (interaction.customId === 'confirm_close') return await handleTicketCloseConfirm(interaction);
             if (interaction.customId === 'cancel_close') return await handleTicketCloseCancel(interaction);
-            if (interaction.customId === 'ticket_help') return await handleTicketHelp(interaction);
-            if (interaction.customId === 'refresh_ticket') return await handleRefreshTicket(interaction);
+            if (interaction.customId === 'ticket_info') return await handleTicketInfo(interaction);
+            if (interaction.customId === 'add_user') return await handleAddUserModal(interaction);
         }
     } catch (error) {
         console.error('Interaction error:', error);
@@ -178,12 +180,16 @@ async function handleStaffCheck(interaction) {
     const isStaff = hasSupportPermission(interaction.member);
     const isOwner = interaction.user.id === config.ownerId;
     
-    const content = `## 👮 Staff Permission Check\n` +
-                   `**User:** ${interaction.user.tag}\n` +
-                   `**User ID:** ${interaction.user.id}\n` +
-                   `**Server Owner:** ${isOwner ? '✅ Yes' : '❌ No'}\n` +
-                   `**Staff Permission:** ${isStaff ? '✅ Yes' : '❌ No'}\n` +
-                   `**Required Roles:** ${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId.map(r => `<@&${r}>`).join(', ') : 'Not set'}`;
+    const content = `## 🔧 Staff Permission Check\n` +
+                   `\n` +
+                   `**👤 User Information**\n` +
+                   `• **Name:** ${interaction.user.tag}\n` +
+                   `• **ID:** \`${interaction.user.id}\`\n` +
+                   `• **Server Owner:** ${isOwner ? '✅ Yes' : '❌ No'}\n` +
+                   `• **Staff Permission:** ${isStaff ? '✅ Yes' : '❌ No'}\n\n` +
+                   `**🎭 Required Roles**\n` +
+                   `${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId.map(r => `• <@&${r}>`).join('\n') : '• Not configured'}\n\n` +
+                   `**📅 Checked At:** <t:${Math.floor(Date.now() / 1000)}:T>`;
     
     await interaction.reply({ 
         content: content,
@@ -205,7 +211,11 @@ async function handleLogSetup(interaction) {
     fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
     
     await interaction.reply({ 
-        content: `✅ **Log Channel Set**\nLog channel has been set to ${channel}.`,
+        content: `## ✅ Log Channel Configured\n\n` +
+                `**📝 Channel Set:** ${channel}\n` +
+                `**🔧 Action:** All ticket logs will be sent here\n` +
+                `**👤 Configured by:** ${interaction.user}\n` +
+                `**🕒 Time:** <t:${Math.floor(Date.now() / 1000)}:T>`,
         flags: MessageFlags.Ephemeral 
     });
 }
@@ -222,7 +232,11 @@ async function handleLogReset(interaction) {
     fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
     
     await interaction.reply({ 
-        content: '✅ **Log Channel Reset**\nLog channel has been reset. Ticket logs will no longer be sent.',
+        content: `## 🔄 Log Channel Reset\n\n` +
+                `**📝 Action:** Ticket logging has been disabled\n` +
+                `**⚠️ Note:** No more logs will be recorded\n` +
+                `**👤 Reset by:** ${interaction.user}\n` +
+                `**🕒 Time:** <t:${Math.floor(Date.now() / 1000)}:T>`,
         flags: MessageFlags.Ephemeral 
     });
 }
@@ -232,11 +246,13 @@ async function handleTicketStats(interaction) {
     const closedTickets = Object.values(ticketData).filter(t => t.status === 'closed').length;
     const totalTickets = Object.keys(ticketData).length;
     
-    const content = `## 📊 Ticket Statistics\n` +
-                   `**📈 Open Tickets:** ${openTickets}\n` +
-                   `**📉 Closed Tickets:** ${closedTickets}\n` +
-                   `**📊 Total Tickets:** ${totalTickets}\n` +
-                   `**Last Updated:** <t:${Math.floor(Date.now() / 1000)}:R>`;
+    const content = `## 📊 Ticket Statistics\n\n` +
+                   `**📈 Open Tickets:** \`${openTickets}\`\n` +
+                   `**📉 Closed Tickets:** \`${closedTickets}\`\n` +
+                   `**📊 Total Tickets:** \`${totalTickets}\`\n` +
+                   `**🔄 Active Sessions:** \`${Object.values(ticketData).filter(t => t.status === 'open').length}\`\n\n` +
+                   `**📅 Last Updated:** <t:${Math.floor(Date.now() / 1000)}:R>\n` +
+                   `**🤖 System Status:** 🟢 Operational`;
     
     await interaction.reply({ 
         content: content,
@@ -250,7 +266,7 @@ async function handleCloseCommand(interaction) {
     
     if (!ticket) {
         return await interaction.reply({
-            content: '❌ This is not a ticket channel!',
+            content: '❌ This channel is not a ticket!',
             flags: MessageFlags.Ephemeral
         });
     }
@@ -261,7 +277,7 @@ async function handleCloseCommand(interaction) {
     
     if (!isSupportStaff && !isServerOwner) {
         return await interaction.reply({
-            content: '❌ Only support staff can close tickets!',
+            content: '❌ Only staff members can close tickets!',
             flags: MessageFlags.Ephemeral
         });
     }
@@ -290,31 +306,45 @@ async function handleTicketCommand(interaction) {
             });
         }
 
-        // Modern ticket panel without embeds
+        // MODERN TICKET PANEL - NO EMBEDS
         const panelContent = `# 🎫 RurySoft | Ticket System\n` +
-                           `### Need assistance? Create a ticket!\n\n` +
-                           `▸ **Private & Secure Support**\n` +
-                           `▸ **Authorized Staff Only**\n` +
-                           `▸ **24/7 Response Time**\n` +
-                           `▸ **Professional Service**\n\n` +
-                           `⚠️ **Important:** Provide accurate information when creating tickets.\n` +
-                           `📊 **Ticket Stats:** \`/ticketstats\`\n\n` +
-                           `**Select a category below to get started:**`;
+                           `\n` +
+                           `## 📋 Get Support & Assistance\n` +
+                           `Create a ticket to get help from our dedicated support team.\n` +
+                           `Our system ensures private, secure, and efficient communication.\n` +
+                           `\n` +
+                           `### 🔒 Key Features\n` +
+                           `• **Private Channels** - Only you and our staff can see\n` +
+                           `• **Fast Response** - 24/7 support availability\n` +
+                           `• **Secure Communication** - End-to-end privacy\n` +
+                           `• **Professional Staff** - Trained support team\n` +
+                           `\n` +
+                           `### ⚠️ Important Guidelines\n` +
+                           `• Provide detailed information\n` +
+                           `• Be respectful to staff members\n` +
+                           `• No spam or duplicate tickets\n` +
+                           `• False information will lead to ban\n` +
+                           `\n` +
+                           `### 📊 System Information\n` +
+                           `**Status:** 🟢 Online | **Queue:** 0 | **Avg. Response:** < 15min\n` +
+                           `**Last Updated:** <t:${Math.floor(Date.now() / 1000)}:T>`;
 
-        // Create category buttons
-        const categoryButtons = new ActionRowBuilder()
+        // MAIN ACTION BUTTONS
+        const mainButtons = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('create_ticket')
                     .setLabel('🎫 Create Ticket')
-                    .setStyle(ButtonStyle.Primary),
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('🎫'),
                 new ButtonBuilder()
-                    .setCustomId('ticket_help')
-                    .setLabel('❓ Help & Info')
+                    .setCustomId('ticket_info')
+                    .setLabel('ℹ️ Information')
                     .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('ℹ️')
             );
 
-        // Category selection menu
+        // CATEGORY SELECTION MENU
         const selectMenu = new StringSelectMenuBuilder()
             .setCustomId('ticket_category')
             .setPlaceholder('📂 Select Ticket Category')
@@ -322,7 +352,7 @@ async function handleTicketCommand(interaction) {
             .addOptions(
                 Object.entries(config.categories).map(([key, c]) => ({
                     label: c.name,
-                    description: c.description,
+                    description: c.description.substring(0, 100),
                     value: key,
                     emoji: c.emoji
                 }))
@@ -330,7 +360,7 @@ async function handleTicketCommand(interaction) {
 
         const selectRow = new ActionRowBuilder().addComponents(selectMenu);
 
-        // Status row
+        // STATUS BAR
         const statusRow = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -339,18 +369,19 @@ async function handleTicketCommand(interaction) {
                     .setStyle(ButtonStyle.Success)
                     .setDisabled(true),
                 new ButtonBuilder()
-                    .setCustomId('refresh_ticket')
-                    .setLabel('🔄 Refresh')
+                    .setCustomId('stats')
+                    .setLabel(`📊 Tickets: ${Object.keys(ticketData).filter(k => ticketData[k].status === 'open').length}`)
                     .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true)
             );
 
         await targetChannel.send({
             content: panelContent,
-            components: [categoryButtons, selectRow, statusRow]
+            components: [mainButtons, selectRow, statusRow]
         });
 
         await interaction.editReply({
-            content: `✅ Modern ticket panel sent to ${targetChannel}`
+            content: `✅ Modern ticket panel has been sent to ${targetChannel}`
         });
 
     } catch (error) {
@@ -368,74 +399,73 @@ async function handleTicketCommand(interaction) {
     }
 }
 
-async function handleTicketHelp(interaction) {
+async function handleCreateTicketButton(interaction) {
+    const active = Object.values(ticketData)
+        .find(t => t.userId === interaction.user.id && t.status === 'open');
+
+    if (active) {
+        return await interaction.reply({
+            content: `❌ You already have an active ticket!\n\n` +
+                    `**Ticket Details:**\n` +
+                    `• **ID:** \`${active.id}\`\n` +
+                    `• **Channel:** <#${active.channelId}>\n` +
+                    `• **Created:** <t:${Math.floor(active.createdAt / 1000)}:R>\n\n` +
+                    `Please close your existing ticket before creating a new one.`,
+            flags: MessageFlags.Ephemeral
+        });
+    }
+
     await interaction.reply({
-        content: `## ❓ Ticket System Help\n\n` +
-                `**How to create a ticket:**\n` +
-                `1. Click "Create Ticket" button\n` +
-                `2. Select a category from the dropdown\n` +
-                `3. Fill out the form\n` +
-                `4. Submit and wait for staff\n\n` +
-                `**Ticket Rules:**\n` +
-                `• Be respectful to staff\n` +
-                `• Provide detailed information\n` +
-                `• Don't create duplicate tickets\n` +
-                `• Only ticket owner can view the channel\n\n` +
-                `**Staff Commands:**\n` +
-                `\`/closeticket [reason]\` - Close current ticket\n` +
-                `\`/ticketstats\` - View ticket statistics\n` +
-                `\`/staffcheck\` - Check your permissions`,
+        content: `🎫 **Select a category from the dropdown menu above**\n\n` +
+                `Choose the category that best fits your request:\n` +
+                `• **Support** - Technical issues & help\n` +
+                `• **Payment** - Billing & purchases\n` +
+                `• **Reseller** - Partnership inquiries\n` +
+                `• **Media** - Collaboration requests\n` +
+                `• **HWID** - Hardware ID resets\n\n` +
+                `*After selection, a form will appear to provide details.*`,
         flags: MessageFlags.Ephemeral
     });
 }
 
-async function handleRefreshTicket(interaction) {
+async function handleTicketInfo(interaction) {
     await interaction.reply({
-        content: '🔄 Ticket system refreshed!',
+        content: `## ℹ️ Ticket System Information\n\n` +
+                `### How to Create a Ticket\n` +
+                `1. Click "Create Ticket" button\n` +
+                `2. Select a category from dropdown\n` +
+                `3. Fill out the form with details\n` +
+                `4. Submit and wait for staff\n\n` +
+                `### What Happens Next\n` +
+                `• Private channel created for you\n` +
+                `• Support team notified automatically\n` +
+                `• You can communicate privately\n` +
+                `• Only staff can close the ticket\n\n` +
+                `### Rules & Guidelines\n` +
+                `• Be patient and respectful\n` +
+                `• Provide detailed information\n` +
+                `• No sharing of sensitive data\n` +
+                `• One ticket per issue\n\n` +
+                `### Staff Commands\n` +
+                `\`/closeticket [reason]\` - Close ticket\n` +
+                `\`/ticketstats\` - View statistics\n` +
+                `\`/staffcheck\` - Check permissions\n\n` +
+                `**Need more help?** Contact server administration.`,
         flags: MessageFlags.Ephemeral
     });
 }
 
 async function handleCategorySelection(interaction) {
     try {
-        let selectedCategory;
-        
-        // Check if coming from button or select menu
-        if (interaction.isButton()) {
-            // Show category selection modal
-            const modal = new ModalBuilder()
-                .setCustomId('select_category_modal')
-                .setTitle('🎟️ Select Ticket Category');
-                
-            const categoryInput = new TextInputBuilder()
-                .setCustomId('category_select')
-                .setLabel('Choose a category')
-                .setPlaceholder('Type: support, payment, reseller, media, or hwid')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true);
-                
-            const actionRow = new ActionRowBuilder().addComponents(categoryInput);
-            modal.addComponents(actionRow);
-            
-            return await interaction.showModal(modal);
-        } else {
-            selectedCategory = interaction.values[0];
-        }
-
+        const selectedCategory = interaction.values[0];
         const category = config.categories[selectedCategory];
-        if (!category) {
-            return await interaction.reply({
-                content: '❌ Invalid category selected!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
 
         const active = Object.values(ticketData)
             .find(t => t.userId === interaction.user.id && t.status === 'open');
 
         if (active) {
             return await interaction.reply({
-                content: `❌ You already have an active ticket!\nPlease close your existing ticket before creating a new one.\n**Ticket:** <#${active.channelId}>`,
+                content: '❌ You already have an active ticket!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -583,19 +613,6 @@ async function handleModalSubmit(interaction) {
             }
         }
 
-        // Save ticket data
-        ticketData[channel.id] = {
-            id: ticketId,
-            userId: user.id,
-            username: user.username,
-            userTag: user.tag,
-            category: categoryKey,
-            createdAt: Date.now(),
-            status: 'open',
-            channelId: channel.id,
-            answers: []
-        };
-
         // Collect answers
         let questions = [];
         switch (categoryKey) {
@@ -607,61 +624,107 @@ async function handleModalSubmit(interaction) {
         }
 
         let answerText = '';
+        let answers = [];
         for (let i = 0; i < questions.length; i++) {
             const answer = interaction.fields.getTextInputValue(`question_${i}`);
             if (answer && answer.trim()) {
                 answerText += `**${questions[i]}:**\n\`\`\`${answer.substring(0, 300)}\`\`\`\n`;
-                ticketData[channel.id].answers.push({ question: questions[i], answer: answer });
+                answers.push({ question: questions[i], answer: answer });
             }
         }
 
-        // Create ticket content
-        const ticketContent = `# 🎫 ${category.emoji} ${category.name} Ticket\n` +
-                            `**Ticket ID:** \`${ticketId}\`\n` +
-                            `**User:** ${user} (\`${user.tag}\`)\n` +
-                            `**Category:** ${category.name}\n` +
-                            `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
-                            `## 📋 Ticket Information\n` +
-                            `${answerText}\n` +
-                            `## 👥 Assigned Staff\n` +
-                            `${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId.map(r => `<@&${r}>`).join(' ') : 'Awaiting staff assignment...'}\n\n` +
-                            `📌 **Please provide additional details if needed.**`;
+        // Save ticket data
+        ticketData[channel.id] = {
+            id: ticketId,
+            userId: user.id,
+            username: user.username,
+            userTag: user.tag,
+            category: categoryKey,
+            createdAt: Date.now(),
+            status: 'open',
+            channelId: channel.id,
+            answers: answers
+        };
 
-        // Welcome message
-        const welcomeContent = `# 👋 Welcome to Your Ticket!\n` +
-                              `Hello ${user},\n\n` +
-                              `Thank you for contacting **RurySoft Support**.\n` +
-                              `Our team will assist you shortly.\n\n` +
-                              `**📝 Please provide:**\n` +
-                              `▸ Detailed description of your issue\n` +
-                              `▸ Screenshots if applicable\n` +
-                              `▸ Error messages\n` +
-                              `▸ Steps to reproduce\n\n` +
-                              `⚠️ **Do not share sensitive information publicly!**\n` +
-                              `✅ **Keep all communication in this channel**`;
+        // WELCOME MESSAGE - NO EMBEDS
+        const welcomeContent = `# 🎫 ${category.emoji} ${category.name} Ticket\n` +
+                              `\n` +
+                              `## 📋 Ticket Information\n` +
+                              `**Ticket ID:** \`${ticketId}\`\n` +
+                              `**User:** ${user} (\`${user.tag}\`)\n` +
+                              `**Category:** ${category.name}\n` +
+                              `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+                              `**Status:** 🟢 Open - Awaiting staff\n` +
+                              `\n` +
+                              `## 📝 Provided Details\n` +
+                              `${answerText}\n` +
+                              `## 👥 Assigned Staff Team\n` +
+                              `${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId.map(r => `<@&${r}>`).join(' ') : 'Awaiting staff assignment...'}\n` +
+                              `\n` +
+                              `## 📌 Instructions\n` +
+                              `• Please provide additional details if needed\n` +
+                              `• Be patient while waiting for staff response\n` +
+                              `• Do not share sensitive information publicly\n` +
+                              `• Only staff can close this ticket\n` +
+                              `\n` +
+                              `*Thank you for contacting RurySoft Support!*`;
 
-        // Control buttons
+        // CONTROL BUTTONS
         const controlButtons = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId('close_ticket')
                     .setLabel('🔒 Close Ticket')
-                    .setStyle(ButtonStyle.Danger),
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🔒'),
                 new ButtonBuilder()
-                    .setCustomId('refresh_ticket')
-                    .setLabel('🔄 Refresh')
+                    .setCustomId('add_user')
+                    .setLabel('👥 Add User')
                     .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('👥')
             );
 
-        // Send messages
-        await channel.send({ content: welcomeContent });
+        // Send ticket message
         await channel.send({ 
-            content: ticketContent,
+            content: welcomeContent,
             components: [controlButtons]
         });
 
+        // Additional welcome message
+        const additionalContent = `# 👋 Welcome to Your Support Ticket!\n` +
+                                `\n` +
+                                `Hello ${user},\n` +
+                                `Thank you for contacting **RurySoft Support**.\n` +
+                                `Our dedicated team has been notified and will assist you shortly.\n` +
+                                `\n` +
+                                `### 📋 What to Expect\n` +
+                                `• **Response Time:** Usually within 15-30 minutes\n` +
+                                `• **Support Hours:** 24/7 availability\n` +
+                                `• **Communication:** Keep all conversation here\n` +
+                                `\n` +
+                                `### 📝 How to Help Us Help You\n` +
+                                `• Provide detailed description of your issue\n` +
+                                `• Include screenshots if applicable\n` +
+                                `• Share error messages if any\n` +
+                                `• List steps to reproduce the problem\n` +
+                                `\n` +
+                                `### ⚠️ Important Security Notice\n` +
+                                `• **Never share** your password or 2FA codes\n` +
+                                `• **Never share** product keys publicly\n` +
+                                `• **Verify staff** through official channels\n` +
+                                `• **Report** suspicious behavior immediately\n` +
+                                `\n` +
+                                `*We're here to help! Please wait patiently.*`;
+        
+        await channel.send({ content: additionalContent });
+
         await interaction.editReply({
-            content: `✅ Ticket created successfully!\n**Channel:** ${channel}\n**ID:** \`${ticketId}\``
+            content: `✅ **Ticket Created Successfully!**\n\n` +
+                    `**Channel:** ${channel}\n` +
+                    `**Ticket ID:** \`${ticketId}\`\n` +
+                    `**Category:** ${category.name}\n` +
+                    `**Created:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
+                    `Our support team has been notified and will assist you shortly.`
         });
 
         // Send to log channel
@@ -670,11 +733,19 @@ async function handleModalSubmit(interaction) {
                 const logChannel = guild.channels.cache.get(config.logChannelId);
                 if (logChannel) {
                     const logContent = `## 🎫 New Ticket Created\n` +
+                                     `\n` +
                                      `**Ticket ID:** \`${ticketId}\`\n` +
-                                     `**User:** ${user.tag} (${user.id})\n` +
+                                     `**User:** ${user.tag} (\`${user.id}\`)\n` +
                                      `**Category:** ${category.name}\n` +
                                      `**Channel:** ${channel}\n` +
-                                     `**Time:** <t:${Math.floor(Date.now() / 1000)}:T>`;
+                                     `**Time:** <t:${Math.floor(Date.now() / 1000)}:T>\n` +
+                                     `\n` +
+                                     `### 📝 Quick Details\n` +
+                                     `**Username:** ${interaction.fields.getTextInputValue('question_0') || 'Not provided'}\n` +
+                                     `**Issue Type:** ${categoryKey}\n` +
+                                     `**Created:** Just now\n` +
+                                     `\n` +
+                                     `*Ticket has been assigned to support team.*`;
                     
                     await logChannel.send({ content: logContent });
                 }
@@ -686,9 +757,13 @@ async function handleModalSubmit(interaction) {
     } catch (error) {
         console.error('Fatal error in handleModalSubmit:', error);
         
-        let errorMsg = '❌ Error creating ticket! ';
+        let errorMsg = '❌ **Error creating ticket!**\n' +
+                      'Please try again or contact server administration.';
+        
         if (error.code === 50013) {
-            errorMsg = '❌ Bot lacks permissions. Please give bot "Manage Channels" permission!';
+            errorMsg = '❌ **Bot Permission Error**\n' +
+                      'The bot lacks "Manage Channels" permission.\n' +
+                      'Please grant the necessary permissions and try again.';
         }
         
         if (interaction.replied || interaction.deferred) {
@@ -700,6 +775,24 @@ async function handleModalSubmit(interaction) {
             });
         }
     }
+}
+
+async function handleAddUserModal(interaction) {
+    const modal = new ModalBuilder()
+        .setCustomId('add_user_modal')
+        .setTitle('👥 Add User to Ticket');
+    
+    const userIdInput = new TextInputBuilder()
+        .setCustomId('user_id')
+        .setLabel('User ID or Mention')
+        .setPlaceholder('Enter user ID or @mention')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+    
+    const actionRow = new ActionRowBuilder().addComponents(userIdInput);
+    modal.addComponents(actionRow);
+    
+    await interaction.showModal(modal);
 }
 
 async function handleTicketClose(interaction) {
@@ -722,25 +815,37 @@ async function handleTicketClose(interaction) {
         if (!isSupportStaff && !isServerOwner) {
             if (isTicketOwner) {
                 return await interaction.reply({
-                    content: '❌ Ticket owners cannot close tickets. Please ask support staff for assistance.',
+                    content: '❌ **Ticket owners cannot close tickets!**\n' +
+                            'Please ask support staff for assistance.\n' +
+                            'You can ping the staff team or wait for their response.',
                     flags: MessageFlags.Ephemeral
                 });
             }
             
             return await interaction.reply({
-                content: '❌ Only support staff can close tickets!',
+                content: '❌ **Permission Denied!**\n' +
+                        'Only authorized support staff can close tickets.\n' +
+                        'Please contact a staff member if needed.',
                 flags: MessageFlags.Ephemeral
             });
         }
 
         const confirmContent = `## 🔒 Confirm Ticket Closure\n` +
+                              `\n` +
+                              `### 📋 Ticket Details\n` +
                               `**Staff Member:** ${interaction.user}\n` +
                               `**Ticket ID:** \`${ticket.id}\`\n` +
                               `**Ticket Owner:** <@${ticket.userId}>\n` +
-                              `**Category:** ${config.categories[ticket.category].name}\n\n` +
-                              `⚠️ **This action cannot be undone!**\n` +
-                              `The channel will be permanently deleted.\n\n` +
-                              `*Please confirm your action:*`;
+                              `**Category:** ${config.categories[ticket.category].name}\n` +
+                              `**Created:** <t:${Math.floor(ticket.createdAt / 1000)}:R>\n` +
+                              `\n` +
+                              `### ⚠️ Warning\n` +
+                              `**This action cannot be undone!**\n` +
+                              `The ticket channel will be permanently deleted.\n` +
+                              `A transcript will be generated and saved.\n` +
+                              `\n` +
+                              `### ❓ Are you sure?\n` +
+                              `Please confirm your action below:`;
 
         const confirmRow = new ActionRowBuilder()
             .addComponents(
@@ -748,7 +853,7 @@ async function handleTicketClose(interaction) {
                     .setCustomId('confirm_close')
                     .setLabel('✅ Confirm Close')
                     .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🔒'),
+                    .setEmoji('✅'),
                 new ButtonBuilder()
                     .setCustomId('cancel_close')
                     .setLabel('❌ Cancel')
@@ -765,7 +870,7 @@ async function handleTicketClose(interaction) {
     } catch (error) {
         console.error('Error in handleTicketClose:', error);
         await interaction.reply({
-            content: '❌ An error occurred!',
+            content: '❌ An error occurred while processing your request!',
             flags: MessageFlags.Ephemeral
         });
     }
@@ -791,14 +896,13 @@ async function handleTicketCloseConfirm(interaction, reason = 'No reason provide
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.update({
                 content: '❌ You are not authorized to close tickets!',
-                embeds: [],
                 components: []
             });
         }
 
         await interaction.update({
-            content: '🔄 Closing ticket and generating transcript...',
-            embeds: [],
+            content: '🔄 **Closing ticket and generating transcript...**\n' +
+                    'Please wait while we process your request.',
             components: []
         });
 
@@ -807,9 +911,9 @@ async function handleTicketCloseConfirm(interaction, reason = 'No reason provide
             const messages = await channel.messages.fetch({ limit: 100 });
             const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
             
-            let transcript = `╔══════════════════════════════════════════════════╗\n`;
-            transcript += `║               RurySoft Ticket Log                ║\n`;
-            transcript += `╠══════════════════════════════════════════════════╣\n`;
+            let transcript = `╔══════════════════════════════════════════════════════════════╗\n`;
+            transcript += `║                    RURYSOFT TICKET LOG                     ║\n`;
+            transcript += `╠══════════════════════════════════════════════════════════════╣\n`;
             transcript += `║ Ticket ID: ${ticket.id}\n`;
             transcript += `║ User: ${ticket.userTag} (${ticket.userId})\n`;
             transcript += `║ Category: ${config.categories[ticket.category].name}\n`;
@@ -817,52 +921,80 @@ async function handleTicketCloseConfirm(interaction, reason = 'No reason provide
             transcript += `║ Closed: ${new Date().toLocaleString()}\n`;
             transcript += `║ Closed by: ${interaction.user.tag} (${interaction.user.id})\n`;
             transcript += `║ Reason: ${reason}\n`;
-            transcript += `╚══════════════════════════════════════════════════╝\n\n`;
+            transcript += `╚══════════════════════════════════════════════════════════════╝\n\n`;
+            
+            transcript += `MESSAGE LOG:\n`;
+            transcript += `══════════════════════════════════════════════════════════════\n\n`;
             
             sortedMessages.forEach(msg => {
                 const timestamp = msg.createdAt.toLocaleString();
                 const author = msg.author.tag;
                 const content = msg.content || '[Attachment/Embed]';
                 
-                transcript += `[${timestamp}] ${author}: ${content}\n`;
+                transcript += `[${timestamp}] ${author}:\n${content}\n\n`;
                 if (msg.attachments.size > 0) {
                     msg.attachments.forEach(att => {
-                        transcript += `       📎 Attachment: ${att.url}\n`;
+                        transcript += `   [ATTACHMENT] ${att.url}\n`;
                     });
                 }
             });
             
             const transcriptBuffer = Buffer.from(transcript, 'utf-8');
             const attachment = new AttachmentBuilder(transcriptBuffer, { 
-                name: `ticket-${ticket.id}-transcript.txt` 
+                name: `ticket-${ticket.id}-transcript-${Date.now()}.txt` 
             });
             
             const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
             
-            // Notification to ticket channel
+            // FINAL CLOSURE MESSAGE
             const closeContent = `## 🔒 Ticket Closed\n` +
+                               `\n` +
+                               `### 📋 Closure Details\n` +
                                `**Closed by:** ${interaction.user}\n` +
                                `**Ticket ID:** \`${ticket.id}\`\n` +
                                `**Duration:** ${duration} minutes\n` +
                                `**Reason:** ${reason}\n` +
-                               `**Transcript:** Generated and saved\n\n` +
-                               `*This channel will be deleted in 10 seconds...*`;
+                               `**Transcript:** ✅ Generated and saved\n` +
+                               `\n` +
+                               `### 📊 Ticket Statistics\n` +
+                               `**Messages:** ${sortedMessages.size}\n` +
+                               `**Active Time:** ${duration} minutes\n` +
+                               `**Created:** <t:${Math.floor(ticket.createdAt / 1000)}:F>\n` +
+                               `**Closed:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
+                               `\n` +
+                               `### ⏳ Next Steps\n` +
+                               `This channel will be deleted in **10 seconds**.\n` +
+                               `The transcript has been saved for record keeping.\n` +
+                               `\n` +
+                               `*Thank you for using RurySoft Support.*`;
             
-            await channel.send({ content: closeContent });
+            await channel.send({ 
+                content: closeContent,
+                files: [attachment]
+            });
             
             // Send to log channel
             if (config.logChannelId) {
                 try {
                     const logChannel = channel.guild.channels.cache.get(config.logChannelId);
                     if (logChannel) {
-                        const logContent = `## 📋 Ticket Closed\n` +
+                        const logContent = `## 📋 Ticket Closed - ${ticket.id}\n` +
+                                         `\n` +
+                                         `### 📊 Closure Information\n` +
                                          `**Ticket ID:** \`${ticket.id}\`\n` +
-                                         `**User:** <@${ticket.userId}>\n` +
+                                         `**User:** <@${ticket.userId}> (\`${ticket.userTag}\`)\n` +
                                          `**Category:** ${config.categories[ticket.category].name}\n` +
                                          `**Opened:** <t:${Math.floor(ticket.createdAt / 1000)}:R>\n` +
                                          `**Duration:** ${duration} minutes\n` +
-                                         `**Closed by:** ${interaction.user.tag}\n` +
-                                         `**Reason:** ${reason}`;
+                                         `**Closed by:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
+                                         `**Reason:** ${reason}\n` +
+                                         `**Messages:** ${sortedMessages.size}\n` +
+                                         `\n` +
+                                         `### 📝 Transcript Summary\n` +
+                                         `Transcript attached to this message.\n` +
+                                         `Channel deleted after 10 seconds.\n` +
+                                         `\n` +
+                                         `*Ticket closure logged at <t:${Math.floor(Date.now() / 1000)}:T>*`;
                         
                         await logChannel.send({ 
                             content: logContent,
@@ -893,7 +1025,7 @@ async function handleTicketCloseConfirm(interaction, reason = 'No reason provide
         } catch (error) {
             console.error('Error closing ticket:', error);
             await interaction.followUp({
-                content: '❌ Error closing ticket!',
+                content: '❌ Error closing ticket! Please try again.',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -904,8 +1036,8 @@ async function handleTicketCloseConfirm(interaction, reason = 'No reason provide
 
 async function handleTicketCloseCancel(interaction) {
     await interaction.update({
-        content: '✅ Ticket closure cancelled.',
-        embeds: [],
+        content: '✅ **Ticket closure cancelled.**\n' +
+                'The ticket remains open and active.',
         components: []
     });
 }
