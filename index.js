@@ -526,15 +526,13 @@ async function handleTicketCloseConfirm(interaction) {
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.update({
                 content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!',
-                components: [],
-                flags: MessageFlags.Ephemeral
+                components: []
             });
         }
 
         await interaction.update({
             content: '<:GreenLock:1465656103801979124> Ticket is closing...\nThis action has been logged.',
-            components: [],
-            flags: MessageFlags.Ephemeral
+            components: []
         });
 
         // Log dosyası oluştur
@@ -578,49 +576,45 @@ async function handleTicketCloseConfirm(interaction) {
 
         fs.writeFileSync(filePath, logText, 'utf8');
 
-        // Log kanalına gönder (EĞER VARSA VE BOTUN İZNİ VARSA)
-        const logChannel = interaction.guild.channels.cache.get(config.logChannelId);
-        if (logChannel) {
+        // Log kanalına gönder (eğer varsa ve botun izni varsa)
+        if (config.logChannelId) {
             try {
-                // Botun log kanalına erişimi var mı kontrol et
-                const permissions = logChannel.permissionsFor(interaction.guild.members.me);
-                if (permissions.has(PermissionFlagsBits.SendMessages) && 
-                    permissions.has(PermissionFlagsBits.AttachFiles)) {
+                const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
+                
+                if (logChannel) {
+                    const botMember = await interaction.guild.members.fetchMe();
+                    const botPermissions = logChannel.permissionsFor(botMember);
                     
-                    const attachment = new AttachmentBuilder(filePath);
-                    
-                    await logChannel.send({
-                        content: `🔒 **Ticket Closed**\n` +
-                                `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
-                                `🎫 Ticket ID: ${ticket.id}\n` +
-                                `📁 Channel: ${channel.name}`,
-                        files: [attachment]
-                    });
-                } else {
-                    console.log('Bot lacks permissions to send messages in log channel');
+                    if (botPermissions.has(PermissionFlagsBits.SendMessages) && 
+                        botPermissions.has(PermissionFlagsBits.AttachFiles)) {
+                        
+                        const attachment = new AttachmentBuilder(filePath);
+                        
+                        await logChannel.send({
+                            content: `🔒 **Ticket Closed**\n` +
+                                    `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
+                                    `🎫 Ticket ID: ${ticket.id}\n` +
+                                    `📁 Channel: ${channel.name}`,
+                            files: [attachment]
+                        });
+                    }
                 }
             } catch (logError) {
-                console.error('Error sending to log channel:', logError.message);
+                // Hata olursa görmezden gel, ticket kapatılmaya devam etsin
+                console.log('Log channel error (ignoring):', logError.message);
             }
-        } else {
-            console.log('Log channel not found or not configured');
         }
 
         // Geçici dosyayı sil
-        fs.unlink(filePath, err => {
-            if (err) console.error('Log file cleanup error:', err);
-        });
+        setTimeout(() => {
+            fs.unlink(filePath, err => {
+                if (err) console.error('Log file cleanup error:', err);
+            });
+        }, 5000);
 
         ticket.status = 'closed';
         ticket.closedAt = Date.now();
         ticket.closedBy = interaction.user.id;
-
-        // Kanala kapatıldı mesajı gönder
-        await channel.send({
-            content: `# Ticket Closed 🔒\n\n` +
-                    `This ticket has been closed by ${interaction.user}.\n` +
-                    `The channel will be deleted in 5 seconds...`
-        });
 
         // 5 saniye sonra kanalı sil
         setTimeout(async () => {
@@ -634,18 +628,6 @@ async function handleTicketCloseConfirm(interaction) {
 
     } catch (error) {
         console.error('Error in handleTicketCloseConfirm:', error);
-
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply({
-                content: '<:GreenClose:1465658452729921589> Error closing ticket!',
-                flags: MessageFlags.Ephemeral
-            });
-        } else {
-            await interaction.reply({
-                content: '<:GreenClose:1465658452729921589> Error closing ticket!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
     }
 }
 
