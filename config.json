@@ -13,25 +13,21 @@
     "categories": {
         "payment": {
             "name": "Buy",
-            "emoji": "🛒",
             "description": "Purchase products",
             "style": 1
         },
         "support": {
             "name": "Technical",
-            "emoji": "🔧",
             "description": "Technical support",
             "style": 2
         },
         "hwid": {
             "name": "HWID Reset",
-            "emoji": "🔄",
             "description": "HWID reset requests",
             "style": 4
         },
         "reseller": {
             "name": "Other",
-            "emoji": "🤝",
             "description": "Reseller inquiries",
             "style": 3
         }
