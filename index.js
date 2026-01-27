@@ -1,7 +1,6 @@
 const {
     Client,
     GatewayIntentBits,
-    EmbedBuilder,
     ActionRowBuilder,
     StringSelectMenuBuilder,
     ModalBuilder,
@@ -43,6 +42,7 @@ process.on('unhandledRejection', (error) => {
 
 function hasSupportPermission(member) {
     if (!config.ticketRoleId || !Array.isArray(config.ticketRoleId)) {
+        console.log('No ticket roles configured or invalid format');
         return false;
     }
     
@@ -106,7 +106,6 @@ client.on('interactionCreate', async interaction => {
                 return await handleTicketCommand(interaction);
         }
 
-        // ──────────────── BUTONLAR ────────────────
         if (interaction.isButton()) {
             if (interaction.customId.startsWith('ticket_')) {
                 return await handleCategoryButton(interaction);
@@ -144,13 +143,13 @@ async function handleCategoryButton(interaction) {
             });
         }
 
-        // aynı kullanıcı aktif ticket kontrolü
+        // Aynı kullanıcı aktif ticket kontrolü
         const active = Object.values(ticketData)
             .find(t => t.userId === interaction.user.id && t.status === 'open');
 
         if (active) {
             return await interaction.reply({
-                content: '🇹🇷 Zaten açık bir ticketın var!\n🇬🇧 You already have an open ticket!',
+                content: '❌ Zaten açık bir ticketın var!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -226,13 +225,6 @@ async function handleCategoryButton(interaction) {
     } catch (err) {
         console.error('Error in handleCategoryButton:', err);
         
-        // Eğer hata "InteractionAlreadyReplied" ise, sadece logla
-        if (err.code === 'InteractionAlreadyReplied') {
-            console.log('Interaction already handled, ignoring...');
-            return;
-        }
-        
-        // Diğer hatalar için
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '❌ Hata oluştu', 
@@ -261,33 +253,61 @@ async function handleTicketCommand(interaction) {
             });
         }
 
-        const embed = new EmbedBuilder()
-            .setTitle('🎫 RuzySoft Support Center')
-            .setDescription('If the required information is not provided, your ticket will be automatically closed!')
-            .setColor(0x5865F2)
-            .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png')
-            .addFields([
+        // Components-based panel
+        const panelMessage = {
+            components: [
                 {
-                    name: 'Select category:',
-                    value: Object.values(config.categories).map(cat => `${cat.emoji} **${cat.name}**`).join('\n')
+                    type: 1, // Action Row
+                    components: [
+                        {
+                            type: 2, // Button
+                            style: config.categories.payment?.style || 1,
+                            label: config.categories.payment?.name || 'Payment',
+                            custom_id: 'ticket_payment',
+                            emoji: config.categories.payment?.emoji || '💰'
+                        },
+                        {
+                            type: 2,
+                            style: config.categories.support?.style || 1,
+                            label: config.categories.support?.name || 'Support',
+                            custom_id: 'ticket_support',
+                            emoji: config.categories.support?.emoji || '🔧'
+                        },
+                        {
+                            type: 2,
+                            style: config.categories.reseller?.style || 1,
+                            label: config.categories.reseller?.name || 'Reseller',
+                            custom_id: 'ticket_reseller',
+                            emoji: config.categories.reseller?.emoji || '🤝'
+                        }
+                    ]
+                },
+                {
+                    type: 1,
+                    components: [
+                        {
+                            type: 2,
+                            style: config.categories.media?.style || 1,
+                            label: config.categories.media?.name || 'Media',
+                            custom_id: 'ticket_media',
+                            emoji: config.categories.media?.emoji || '🎥'
+                        },
+                        {
+                            type: 2,
+                            style: config.categories.hwid?.style || 1,
+                            label: config.categories.hwid?.name || 'HWID Reset',
+                            custom_id: 'ticket_hwid',
+                            emoji: config.categories.hwid?.emoji || '🆔'
+                        }
+                    ]
                 }
-            ]);
+            ]
+        };
 
-        const buttonsRow = new ActionRowBuilder();
-        
-        Object.entries(config.categories).forEach(([key, category]) => {
-            buttonsRow.addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`ticket_${key}`)
-                    .setLabel(category.name)
-                    .setStyle(category.style || ButtonStyle.Primary)
-                    .setEmoji(category.emoji)
-            );
-        });
-
+        // Panel mesajını gönder
         await targetChannel.send({
-            embeds: [embed],
-            components: [buttonsRow]
+            content: '# 🎫 RUZYSOFT SUPPORT CENTER\nSelect a category to create a ticket:\n\n⚠️ **Please provide all required information. Incomplete tickets will be closed automatically!**',
+            components: panelMessage.components
         });
 
         await interaction.editReply({
@@ -321,6 +341,13 @@ async function handleModalSubmit(interaction) {
             flags: MessageFlags.Ephemeral
         });
 
+        // Get user's answers
+        const answers = [];
+        for (let i = 0; i < 4; i++) {
+            const answer = interaction.fields.getTextInputValue(`question_${i}`);
+            if (answer) answers.push(answer);
+        }
+
         const ticketId = `ticket-${Date.now().toString().slice(-6)}`;
         const safeName = user.username.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 20);
         const channelName = `ticket-${safeName}-${ticketId.slice(-6)}`;
@@ -331,23 +358,27 @@ async function handleModalSubmit(interaction) {
             name: channelName,
             type: ChannelType.GuildText,
             parent: config.ticketCategoryId || null,
-            topic: `Ticket ID: ${ticketId} | User: ${user.tag}`,
+            topic: `Ticket ID: ${ticketId} | User: ${user.tag} | Category: ${category.name}`,
             reason: `Ticket created by ${user.tag}`
         });
 
         console.log(`Channel created: ${channel.id}`);
 
+        // Store ticket data
         ticketData[channel.id] = {
             id: ticketId,
             userId: user.id,
             username: user.username,
             userTag: user.tag,
             category: categoryKey,
+            categoryName: category.name,
             createdAt: Date.now(),
             status: 'open',
-            channelId: channel.id
+            channelId: channel.id,
+            answers: answers
         };
 
+        // Set permissions
         try {
             await channel.permissionOverwrites.edit(guild.id, {
                 ViewChannel: false
@@ -362,6 +393,7 @@ async function handleModalSubmit(interaction) {
                 AttachFiles: true,
                 EmbedLinks: true
             });
+
             await channel.permissionOverwrites.edit(user.id, {
                 ViewChannel: true,
                 SendMessages: true,
@@ -370,17 +402,23 @@ async function handleModalSubmit(interaction) {
                 EmbedLinks: true
             });
 
+            // Add support roles
             if (config.ticketRoleId && Array.isArray(config.ticketRoleId)) {
                 for (const roleId of config.ticketRoleId) {
+                    if (!roleId || typeof roleId !== 'string') continue;
+                    
                     try {
-                        await channel.permissionOverwrites.edit(roleId, {
-                            ViewChannel: true,
-                            SendMessages: true,
-                            ReadMessageHistory: true,
-                            ManageMessages: true,
-                            AttachFiles: true,
-                            EmbedLinks: true
-                        });
+                        const role = await guild.roles.fetch(roleId);
+                        if (role) {
+                            await channel.permissionOverwrites.edit(roleId, {
+                                ViewChannel: true,
+                                SendMessages: true,
+                                ReadMessageHistory: true,
+                                ManageMessages: true,
+                                AttachFiles: true,
+                                EmbedLinks: true
+                            });
+                        }
                     } catch (roleError) {
                         console.log(`Role ${roleId} error:`, roleError.message);
                     }
@@ -388,111 +426,65 @@ async function handleModalSubmit(interaction) {
             }
 
         } catch (permError) {
-            console.log('Permission error (continuing):', permError.message);
+            console.log('Permission error:', permError.message);
         }
 
-        // Get modal responses
-        const responses = [];
-        let questionCount = 0;
-        switch (categoryKey) {
-            case 'payment': questionCount = 3; break;
-            case 'support': questionCount = 3; break;
-            case 'reseller': questionCount = 4; break;
-            case 'media': questionCount = 4; break;
-            case 'hwid': questionCount = 3; break;
-        }
-        
-        for (let i = 0; i < questionCount; i++) {
-            const response = interaction.fields.getTextInputValue(`question_${i}`);
-            responses.push(response);
-        }
-
-        // Ticket embed with user responses
-        const ticketEmbed = new EmbedBuilder()
-            .setTitle(`${category.emoji} ${category.name} Ticket`)
-            .setColor(0x5865F2)
-            .setImage('https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png')
-            .addFields([
-                {
-                    name: '📋 Ticket Information',
-                    value: `**User:** ${user}\n**Ticket ID:** ${ticketId}\n**Category:** ${category.name}\n**Created at:** <t:${Math.floor(Date.now()/1000)}:F>`,
-                    inline: false
-                }
-            ]);
-
-        // Add responses to embed
+        // Create category-specific info
+        let categoryInfo = '';
         switch (categoryKey) {
             case 'payment':
-                ticketEmbed.addFields([
-                    { name: '👤 Username', value: responses[0], inline: true },
-                    { name: '🛒 Product', value: responses[1], inline: true },
-                    { name: '💳 Payment Method', value: responses[2], inline: true }
-                ]);
+                categoryInfo = `**Username:** ${answers[0]}\n**Product:** ${answers[1]}\n**Payment Method:** ${answers[2]}`;
                 break;
             case 'support':
-                ticketEmbed.addFields([
-                    { name: '👤 Username', value: responses[0], inline: true },
-                    { name: '🎯 Product/Service', value: responses[1], inline: true },
-                    { name: '📝 Issue Description', value: responses[2].length > 500 ? responses[2].substring(0, 500) + '...' : responses[2], inline: false }
-                ]);
+                categoryInfo = `**Username:** ${answers[0]}\n**Product/Service:** ${answers[1]}\n**Issue:** ${answers[2]}`;
                 break;
             case 'reseller':
-                ticketEmbed.addFields([
-                    { name: '👤 Username', value: responses[0], inline: true },
-                    { name: '🏢 Business Name', value: responses[1], inline: true },
-                    { name: '💰 Monthly Sales', value: responses[2], inline: true },
-                    { name: '📈 Experience', value: responses[3].length > 500 ? responses[3].substring(0, 500) + '...' : responses[3], inline: false }
-                ]);
+                categoryInfo = `**Username:** ${answers[0]}\n**Business:** ${answers[1]}\n**Monthly Sales:** ${answers[2]}\n**Experience:** ${answers[3]}`;
                 break;
             case 'media':
-                ticketEmbed.addFields([
-                    { name: '🔗 Social Media', value: responses[0], inline: true },
-                    { name: '👤 Username', value: responses[1], inline: true },
-                    { name: '🎥 Video URL', value: responses[2], inline: true },
-                    { name: '🤝 Collaboration', value: responses[3].length > 500 ? responses[3].substring(0, 500) + '...' : responses[3], inline: false }
-                ]);
+                categoryInfo = `**Social Media:** ${answers[0]}\n**Username:** ${answers[1]}\n**Video URL:** ${answers[2]}\n**Proposal:** ${answers[3]}`;
                 break;
             case 'hwid':
-                ticketEmbed.addFields([
-                    { name: '👤 Username', value: responses[0], inline: true },
-                    { name: '🔑 Product Key', value: `||${responses[1]}||`, inline: true },
-                    { name: '🔄 Reset Reason', value: responses[2].length > 500 ? responses[2].substring(0, 500) + '...' : responses[2], inline: false }
-                ]);
+                categoryInfo = `**Username:** ${answers[0]}\n**Product Key:** ${answers[1]}\n**Reason:** ${answers[2]}`;
                 break;
         }
 
-        // Welcome message
-        const welcomeEmbed = new EmbedBuilder()
-            .setTitle('🎫 Welcome To Ruzy Support')
-            .setDescription('Please describe your inquiry below. Our staff will be with you shortly.')
-            .setColor(0x00FF00)
-            .setFooter({ text: 'Ticket System v2.0 | RuzySoft' });
+        // Ticket açılış mesajı
+        const ticketMessage = {
+            content: `# 🎫 RUZYSOFT TICKET\n\n**Ticket ID:** ${ticketId}\n**User:** ${user} (${user.tag})\n**Category:** ${category.emoji} ${category.name}\n**Opened with:** ${category.name} Button\n\n${categoryInfo}\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n👋 **Welcome!** Please describe your inquiry below. Our support team will assist you shortly.`,
+            components: [
+                {
+                    type: 1,
+                    components: [
+                        {
+                            type: 2,
+                            style: ButtonStyle.Primary,
+                            label: 'Close Ticket',
+                            emoji: '🔒',
+                            custom_id: 'close_ticket'
+                        },
+                        {
+                            type: 2,
+                            style: ButtonStyle.Danger,
+                            label: 'Delete Ticket',
+                            emoji: '🗑️',
+                            custom_id: 'delete_ticket'
+                        }
+                    ]
+                }
+            ]
+        };
 
-        // Action buttons
-        const actionRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('close_ticket')
-                    .setLabel('Close Ticket')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('🔒'),
-                new ButtonBuilder()
-                    .setCustomId('delete_ticket')
-                    .setLabel('Delete')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🗑️')
-            );
-
-        // Send all messages
-        await channel.send({ 
-            content: `${user} | Opened with **${category.name}** button | <@&${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId[0] : ''}>`, 
-            embeds: [ticketEmbed] 
-        });
+        await channel.send(ticketMessage);
         
-        await channel.send({ 
-            embeds: [welcomeEmbed], 
-            components: [actionRow] 
-        });
+        // Mention support roles if configured
+        if (config.ticketRoleId && Array.isArray(config.ticketRoleId) && config.ticketRoleId.length > 0) {
+            const roleMentions = config.ticketRoleId.map(id => `<@&${id}>`).join(' ');
+            await channel.send({
+                content: `${roleMentions}\n📢 New ticket created!`,
+                allowedMentions: { roles: config.ticketRoleId }
+            });
+        }
 
         await interaction.editReply({
             content: `✅ Ticket created: ${channel}`
@@ -549,12 +541,7 @@ async function handleTicketClose(interaction) {
             });
         }
 
-        // Basit embed ile confirmation
-        const confirmEmbed = new EmbedBuilder()
-            .setColor(0xFFA500)
-            .setTitle('Confirm Ticket Closure')
-            .setDescription(`**Staff Member:** ${interaction.user}\n**Ticket ID:** ${ticket.id}\n**Ticket Owner:** <@${ticket.userId}>\n**Category:** ${config.categories[ticket.category]?.name || 'Unknown'}\n\n⚠️ **This action cannot be undone!**\nThe channel will be permanently deleted.`);
-
+        // Confirmation buttons
         const confirmButtons = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -570,7 +557,7 @@ async function handleTicketClose(interaction) {
             );
 
         await interaction.reply({
-            embeds: [confirmEmbed],
+            content: `# ⚠️ CONFIRM TICKET CLOSURE\n\n**Ticket ID:** ${ticket.id}\n**User:** <@${ticket.userId}>\n**Category:** ${ticket.categoryName}\n**Closed by:** ${interaction.user}\n\n⚠️ **This action cannot be undone!**\nThe channel will be archived and deleted.`,
             components: [confirmButtons],
             flags: MessageFlags.Ephemeral
         });
@@ -612,69 +599,38 @@ async function handleTicketCloseConfirm(interaction) {
             components: []
         });
 
-        try {
-            const messages = await channel.messages.fetch({ limit: 100 });
-            const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+        // Close notification
+        const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
+        const hours = Math.floor(duration / 60);
+        const minutes = duration % 60;
+        
+        const closeMessage = {
+            content: `# 🔒 TICKET CLOSED\n\n**Ticket ID:** ${ticket.id}\n**User:** <@${ticket.userId}>\n**Closed by:** ${interaction.user}\n**Duration:** ${hours > 0 ? `${hours}h ` : ''}${minutes}m\n\n📁 *This channel will be deleted in 10 seconds...*`
+        };
+        
+        await channel.send(closeMessage);
+        
+        // Update ticket data
+        ticket.status = 'closed';
+        ticket.closedAt = Date.now();
+        ticket.closedBy = interaction.user.id;
+        
+        // Wait 10 seconds and delete
+        setTimeout(async () => {
+            try {
+                await channel.delete(`Ticket closed by staff: ${interaction.user.tag}`);
+                delete ticketData[channel.id];
+            } catch (deleteError) {
+                console.error('Error deleting channel:', deleteError);
+            }
+        }, 10000);
             
-            let transcript = `╔══════════════════════════════════════════════════╗\n`;
-            transcript += `║               RuzySoft Ticket Log                ║\n`;
-            transcript += `╠══════════════════════════════════════════════════╣\n`;
-            transcript += `║ Ticket ID: ${ticket.id}\n`;
-            transcript += `║ User: ${ticket.userTag} (${ticket.userId})\n`;
-            transcript += `║ Category: ${config.categories[ticket.category].name}\n`;
-            transcript += `║ Created: ${new Date(ticket.createdAt).toLocaleString()}\n`;
-            transcript += `║ Closed: ${new Date().toLocaleString()}\n`;
-            transcript += `║ Closed by: ${interaction.user.tag} (${interaction.user.id})\n`;
-            transcript += `╚══════════════════════════════════════════════════╝\n\n`;
-            
-            sortedMessages.forEach(msg => {
-                const timestamp = msg.createdAt.toLocaleString();
-                const author = msg.author.tag;
-                const content = msg.content || '[Attachment/Embed]';
-                
-                transcript += `[${timestamp}] ${author}: ${content}\n`;
-                if (msg.attachments.size > 0) {
-                    msg.attachments.forEach(att => {
-                        transcript += `       📎 Attachment: ${att.url}\n`;
-                    });
-                }
-            });
-            
-            const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
-            
-            // CLOSE NOTIFICATION - Components-based
-            const closeEmbed = new EmbedBuilder()
-                .setTitle('🎫 Ticket Closed')
-                .setDescription(`**Closed by:** ${interaction.user}\n**Ticket ID:** ${ticket.id}\n**Duration:** ${duration} minutes\n\n*This channel will be deleted in 10 seconds...*`)
-                .setColor(0xFF0000)
-                .setTimestamp();
-            
-            await channel.send({ embeds: [closeEmbed] });
-            
-            // Update ticket data
-            ticket.status = 'closed';
-            ticket.closedAt = Date.now();
-            ticket.closedBy = interaction.user.id;
-            
-            // Wait 10 seconds and delete
-            setTimeout(async () => {
-                try {
-                    await channel.delete(`Ticket closed by staff: ${interaction.user.tag}`);
-                    delete ticketData[channel.id];
-                } catch (deleteError) {
-                    console.error('Error deleting channel:', deleteError);
-                }
-            }, 10000);
-            
-        } catch (error) {
-            console.error('Error closing ticket:', error);
-            await interaction.followUp({
-                content: '❌ Error closing ticket!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
     } catch (error) {
         console.error('Error in handleTicketCloseConfirm:', error);
+        await interaction.followUp({
+            content: '❌ Error closing ticket!',
+            flags: MessageFlags.Ephemeral
+        });
     }
 }
 
