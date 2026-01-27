@@ -16,7 +16,7 @@ const {
     Events,
     ActivityType
 } = require('discord.js');
-
+const path = require('path');
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
@@ -79,7 +79,7 @@ client.once('ready', async () => {
         const commands = [
             {
                 name: 'ticketpanel',
-                description: 'Send premium ticket panel',
+                description: 'Send ruzysoft ticket panel',
                 options: [{
                     name: 'channel',
                     description: 'Channel to send panel to',
@@ -93,7 +93,7 @@ client.once('ready', async () => {
             await guild.commands.create(cmd);
         }
 
-        console.log('✨ Premium commands loaded!');
+        console.log('Ruzysoft commands loaded!');
     } catch (error) {
         console.log('Command loading error:', error.message);
     }
@@ -106,7 +106,6 @@ client.on('interactionCreate', async interaction => {
                 return await handleTicketCommand(interaction);
         }
 
-        // ──────────────── BUTONLAR ────────────────
         if (interaction.isButton()) {
             if (interaction.customId.startsWith('ticket_')) {
                 return await handleCategoryButton(interaction);
@@ -140,12 +139,11 @@ async function handleCategoryButton(interaction) {
 
         if (!category) {
             return await interaction.reply({
-                content: '<:GreenClose:1465658452729921589> Geçersiz kategori!',
+                content: '<:GreenClose:1465658452729921589> Invalid category!',
                 flags: MessageFlags.Ephemeral
             });
         }
 
-        // aynı kullanıcı aktif ticket kontrolü
         const active = Object.values(ticketData)
             .find(t => t.userId === interaction.user.id && t.status === 'open');
 
@@ -156,7 +154,6 @@ async function handleCategoryButton(interaction) {
             });
         }
 
-        // Modal oluştur
         const modal = new ModalBuilder()
             .setCustomId(`ticket_modal_${categoryKey}`)
             .setTitle(`${category.emoji} ${category.name} Ticket`);
@@ -198,6 +195,13 @@ async function handleCategoryButton(interaction) {
                 break;
         }
 
+        if (!questions || questions.length === 0) {
+            return await interaction.reply({
+                content: '<:GreenClose:1465658452729921589> This category is temporarily unavailable.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
         questions.forEach((q, index) => {
             const textInput = new TextInputBuilder()
                 .setCustomId(`question_${index}`)
@@ -210,8 +214,7 @@ async function handleCategoryButton(interaction) {
             const actionRow = new ActionRowBuilder().addComponents(textInput);
             modal.addComponents(actionRow);
         });
-
-        // Modal'ı göster
+        
         await interaction.showModal(modal);
 
     } catch (err) {
