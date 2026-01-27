@@ -449,7 +449,8 @@ async function handleModalSubmit(interaction) {
                                 {
                                     style: 2, 
                                     type: 2, 
-                                    label: '<:GreenConfirm:1465658485873180733> Close Ticket',
+                                    label: 'Close Ticket',
+                                    emoji: { id: '1465658485873180733' },
                                     custom_id: 'close_ticket'
                                 },
                                 {
@@ -550,13 +551,15 @@ async function handleTicketClose(interaction) {
                                 {
                                     type: 2,
                                     style: 4, // Danger
-                                    label: '<:GreenConfirm:1465658485873180733> Confirm Close',
+                                    label: 'Confirm Close',
+                                    emoji: { id: '1465658485873180733' },
                                     custom_id: 'confirm_close'
                                 },
                                 {
                                     type: 2,
                                     style: 2, 
-                                    label: '<:GreenClose:1465658452729921589> Cancel',
+                                    label: 'Cancel',
+                                    emoji: { id: '1465658452729921589' },
                                     custom_id: 'cancel_close'
                                 }
                             ]
