@@ -521,37 +521,17 @@ async function handleTicketClose(interaction) {
             });
         }
 
-        // Basit embed ile confirmation
-        const confirmEmbed = new EmbedBuilder()
-            .setColor(0xFFA500)
-            .setTitle('Confirm Ticket Closure')
-            .setDescription(`**Staff Member:** ${interaction.user}\n**Ticket ID:** ${ticket.id}\n**Ticket Owner:** <@${ticket.userId}>\n**Category:** ${config.categories[ticket.category]?.name || 'Unknown'}\n\n⚠️ **This action cannot be undone!**\nThe channel will be permanently deleted.`);
-
-        const confirmButtons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('confirm_close')
-                    .setLabel('✅ Confirm Close')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🔒'),
-                new ButtonBuilder()
-                    .setCustomId('cancel_close')
-                    .setLabel('❌ Cancel')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('❌')
-            );
-
         await interaction.reply({
-            flags: 32768, // ephemeral
+            flags: 32768, 
             components: [
                 {
-                    type: 17, // Container (interaction-only, burada doğru)
+                    type: 17, 
                     components: [
                         {
                             type: 10,
                             content:
-                                '# 🔒 Confirm Ticket Closure\n' +
-                                `**Staff Member:** ${interaction.user}\n` +
+                                '# <:GreenLock:1465656103801979124> Confirm Ticket Closure\n' +
+                                `**Owner:** ${interaction.user}\n` +
                                 `**Ticket ID:** ${ticket.id}\n` +
                                 `**Category:** ${config.categories[ticket.category]?.name || 'Unknown'}`
                         },
@@ -562,24 +542,24 @@ async function handleTicketClose(interaction) {
                         {
                             type: 10,
                             content:
-                                '⚠️ **This action is irreversible!**\n' +
-                                'The channel will be permanently closed.'
+                                '- This action is irreversible!\n' +
+                                '- The channel will be permanently closed.'
                         },
                         {
-                            type: 1, // Action Row
+                            type: 1, 
                             components: [
                                 {
                                     type: 2,
                                     style: 4, // Danger
                                     label: 'Confirm Close',
-                                    emoji: { name: '🔒' },
+                                    emoji: { name: '<:GreenConfirm:1465658485873180733>' },
                                     custom_id: 'confirm_close'
                                 },
                                 {
                                     type: 2,
-                                    style: 2, // Secondary
+                                    style: 2, 
                                     label: 'Cancel',
-                                    emoji: { name: '❌' },
+                                    emoji: { name: '<:GreenClose:1465658452729921589>' },
                                     custom_id: 'cancel_close'
                                 }
                             ]
