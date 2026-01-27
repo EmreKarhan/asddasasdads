@@ -116,10 +116,7 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'cancel_close') return await handleTicketCloseCancel(interaction);
         }
 
-        // EĞER STRING SELECT MENÜ KULLANMIYORSANIZ BU KISMI SİLEBİLİRSİNİZ
-        // if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category') {
-        //     return await handleCategorySelection(interaction);
-        // }
+        if (interaction.customId === 'delete_ticket') return await handleTicketDelete(interaction);
 
         if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
             return await handleModalSubmit(interaction);
@@ -330,8 +327,6 @@ async function handleTicketCommand(interaction) {
     }
 }
 
-
-
 async function handleModalSubmit(interaction) {
     try {
         const categoryKey = interaction.customId.split('_')[2];
@@ -416,14 +411,7 @@ async function handleModalSubmit(interaction) {
             console.log('Permission error (continuing):', permError.message);
         }
 
-        // TICKET CONTENT - Components-based
-        let ticketContent = `# ${category.emoji} ${category.name} Ticket\n`;
-        ticketContent += `**Ticket ID:** \`${ticketId}\`\n`;
-        ticketContent += `**User:** ${user} (${user.tag})\n`;
-        ticketContent += `**Category:** ${category.name}\n`;
-        ticketContent += `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n`;
-
-        // QUESTIONS & ANSWERS
+        // First, send the user information with ticket details
         let questions = [];
         switch (categoryKey) {
             case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
@@ -433,72 +421,95 @@ async function handleModalSubmit(interaction) {
             case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
         }
 
+        // Create user info message
+        let userInfoContent = `# ${category.emoji} ${category.name} Ticket\n`;
+        userInfoContent += `**Ticket ID:** \`${ticketId}\`\n`;
+        userInfoContent += `**User:** ${user} (${user.tag})\n`;
+        userInfoContent += `**Category:** ${category.name}\n`;
+        userInfoContent += `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n`;
+        userInfoContent += `**User Information:**\n`;
+
         for (let i = 0; i < questions.length; i++) {
             const answer = interaction.fields.getTextInputValue(`question_${i}`);
             if (answer && answer.trim()) {
-                ticketContent += `**${questions[i]}:**\n\`\`\`${answer.substring(0, 500)}\`\`\`\n`;
+                userInfoContent += `**${questions[i]}:** ${answer.substring(0, 500)}\n`;
             }
         }
 
-        // WELCOME MESSAGE - Components-based
-        const welcomeMessage = {
-            components: [
-                {
-                    type: 17,
-                    components: [
-                        {
-                            type: 10,
-                            content: `# 👋 Welcome ${user.username}!\n\nThank you for contacting **RuzySoft Support**.\nOur team will assist you shortly.\n\n**Please provide:**\n- Detailed description\n- Screenshots if needed\n- Error messages\n\n⚠️ **Do not share your product key publicly!**`
-                        }
-                    ]
-                }
-            ]
-        };
+        // Mention support roles
+        let mentionText = '';
+        if (config.ticketRoleId && config.ticketRoleId.length > 0) {
+            mentionText = config.ticketRoleId.map(r => `<@&${r}>`).join(' ');
+        }
 
-        // TICKET MESSAGE - Components-based with close button
+        // Send user info first
+        await channel.send({
+            content: `${user} ${mentionText}\n${userInfoContent}`
+        });
+
+        // Now send the container component message
         const ticketMessage = {
-            content: ticketContent,
+            flags: 32768, // Ephemeral flag (for embed-like appearance)
             components: [
                 {
-                    type: 1,
+                    type: 17, // Container Component
                     components: [
                         {
-                            style: 4,
-                            type: 2,
-                            label: 'Close Ticket',
-                            custom_id: 'close_ticket',
-                            emoji: '🔒'
+                            type: 12, // Media Component
+                            items: [
+                                {
+                                    media: {
+                                        url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            type: 10, // Text Component
+                            content: `${user} | ${category.emoji} ${category.name} Ticket\nMod: @staff`
+                        },
+                        {
+                            type: 14, // Divider Component
+                            divider: false
+                        },
+                        {
+                            type: 14, // Divider Component
+                            divider: false
+                        },
+                        {
+                            type: 10, // Text Component
+                            content: '# Welcome To Ruzy Support\nPlease describe your inquiry below. Our staff will be with you shortly.'
+                        },
+                        {
+                            type: 1, // Action Row Component
+                            components: [
+                                {
+                                    style: 2, // Secondary style
+                                    type: 2, // Button
+                                    label: 'Close Ticket',
+                                    emoji: { name: '🔒' },
+                                    custom_id: 'close_ticket'
+                                },
+                                {
+                                    style: 4, // Danger style
+                                    type: 2, // Button
+                                    label: 'Delete',
+                                    custom_id: 'delete_ticket'
+                                }
+                            ]
                         }
                     ]
                 }
             ]
         };
 
-        // SEND MESSAGES
-        try {
-            await channel.send(welcomeMessage);
+        // Send the container message
+        await channel.send(ticketMessage);
 
-            let mentionText = '';
-            if (config.ticketRoleId && config.ticketRoleId.length > 0) {
-                mentionText = config.ticketRoleId.map(r => `<@&${r}>`).join(' ');
-            }
-            await channel.send({
-                content: `${user} ${mentionText}`,
-                components: ticketMessage.components
-            });
-            
-            await channel.send(ticketContent);
-
-            await interaction.editReply({
-                content: `✅ Ticket created: ${channel}`
-            });
-
-        } catch (sendError) {
-            console.log('Send message error:', sendError.message);
-            await interaction.editReply({
-                content: `✅ Ticket created: ${channel} (Some messages may not have been sent)`
-            });
-        }
+        // Update interaction reply
+        await interaction.editReply({
+            content: `✅ Ticket created: ${channel}`
+        });
 
     } catch (error) {
         console.error('Fatal error in handleModalSubmit:', error);
@@ -708,6 +719,50 @@ async function handleTicketCloseCancel(interaction) {
         content: '✅ Ticket closure cancelled.',
         components: []
     });
+}
+
+async function handleTicketDelete(interaction) {
+    try {
+        const channel = interaction.channel;
+        const ticket = ticketData[channel.id];
+
+        if (!ticket) {
+            return await interaction.reply({
+                content: '❌ This is not a valid ticket channel!',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        const member = interaction.member;
+        
+        const isSupportStaff = hasSupportPermission(member);
+        const isServerOwner = interaction.user.id === config.ownerId;
+        
+        if (!isSupportStaff && !isServerOwner) {
+            return await interaction.reply({
+                content: '❌ Only support staff can delete tickets!',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+
+        await interaction.reply({
+            content: '🗑️ Deleting ticket...',
+            flags: MessageFlags.Ephemeral
+        });
+
+        // Delete ticket data
+        delete ticketData[channel.id];
+        
+        // Delete channel
+        await channel.delete('Ticket deleted by staff');
+
+    } catch (error) {
+        console.error('Error in handleTicketDelete:', error);
+        await interaction.reply({
+            content: '❌ Error deleting ticket!',
+            flags: MessageFlags.Ephemeral
+        });
+    }
 }
 
 client.login(process.env.DISCORD_TOKEN);
