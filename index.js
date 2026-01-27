@@ -591,7 +591,8 @@ async function handleTicketCloseConfirm(interaction) {
 
     if (!ticket) {
       return await interaction.editReply({
-        content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!'
+        content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
+        ephemeral: true
       });
     }
 
@@ -601,15 +602,16 @@ async function handleTicketCloseConfirm(interaction) {
 
     if (!isSupportStaff && !isServerOwner) {
       return await interaction.editReply({
-        content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!'
+        content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!',
+        ephemeral: true
       });
     }
 
     await interaction.editReply({
-      content: '<:GreenLock:1465656103801979124> Ticket is closing...'
+      content: '<:GreenLock:1465656103801979124> Ticket is closing...',
+      ephemeral: true
     });
-
-    // Log dosyası oluştur
+      
     const messages = await channel.messages.fetch({ limit: 100 });
     const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
@@ -647,32 +649,21 @@ async function handleTicketCloseConfirm(interaction) {
 
     fs.writeFileSync(filePath, logText, 'utf8');
 
-    // Log kanalına gönder
     if (config.logChannelId) {
-      try {
-        const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
-        if (logChannel) {
-          const botMember = await interaction.guild.members.fetchMe();
-          const perms = logChannel.permissionsFor(botMember);
-
-          if (
-            perms.has(PermissionFlagsBits.ViewChannel) &&
-            perms.has(PermissionFlagsBits.SendMessages) &&
-            perms.has(PermissionFlagsBits.AttachFiles)
-          ) {
-            await logChannel.send({
-              content:
-                `🔒 **Ticket Closed**\n` +
-                `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
-                `🎫 Ticket ID: ${ticket.id}\n` +
-                `📁 Channel: ${channel.name}`,
-              files: [new AttachmentBuilder(filePath)]
-            });
-          }
+        try {
+            const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
+            if (logChannel) {
+                await logChannel.send({
+                    content:
+                        `🎫 **Ticket Created**\n` +
+                        `👤 User: ${user.tag} (${user.id})\n` +
+                        `📁 Channel: ${channel}\n` +
+                        `🆔 Ticket ID: ${ticketId}`
+                });
+            }
+        } catch (e) {
+            console.log('Ticket create log error:', e.message);
         }
-      } catch (e) {
-        console.log('Log channel error (ignored):', e.message);
-      }
     }
 
     // temp log sil
@@ -682,7 +673,6 @@ async function handleTicketCloseConfirm(interaction) {
     ticket.closedAt = Date.now();
     ticket.closedBy = interaction.user.id;
 
-    // kanal sil
     setTimeout(async () => {
       try {
         await channel.delete(`Ticket closed by ${interaction.user.tag}`);
