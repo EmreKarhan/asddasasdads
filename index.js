@@ -542,9 +542,51 @@ async function handleTicketClose(interaction) {
             );
 
         await interaction.reply({
-            embeds: [confirmEmbed],
-            components: [confirmButtons],
-            flags: MessageFlags.Ephemeral
+            flags: 32768, // ephemeral
+            components: [
+                {
+                    type: 17, // Container (interaction-only, burada doğru)
+                    components: [
+                        {
+                            type: 10,
+                            content:
+                                '# 🔒 Confirm Ticket Closure\n' +
+                                `**Staff Member:** ${interaction.user}\n` +
+                                `**Ticket ID:** ${ticket.id}\n` +
+                                `**Category:** ${config.categories[ticket.category]?.name || 'Unknown'}`
+                        },
+                        {
+                            type: 14,
+                            divider: false
+                        },
+                        {
+                            type: 10,
+                            content:
+                                '⚠️ **This action is irreversible!**\n' +
+                                'The channel will be permanently closed.'
+                        },
+                        {
+                            type: 1, // Action Row
+                            components: [
+                                {
+                                    type: 2,
+                                    style: 4, // Danger
+                                    label: 'Confirm Close',
+                                    emoji: { name: '🔒' },
+                                    custom_id: 'confirm_close'
+                                },
+                                {
+                                    type: 2,
+                                    style: 2, // Secondary
+                                    label: 'Cancel',
+                                    emoji: { name: '❌' },
+                                    custom_id: 'cancel_close'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
         });
         
     } catch (error) {
@@ -614,7 +656,6 @@ async function handleTicketCloseConfirm(interaction) {
             
             const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
             
-            // CLOSE NOTIFICATION - Components-based
             const closeMessage = {
                 components: [
                     {
