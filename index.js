@@ -667,15 +667,21 @@ async function handleTicketCloseConfirm(interaction) {
 
         fs.writeFileSync(filePath, logText, 'utf8');
 
-        // Log kanalına bildirim gönder (COMPONENTS İLE)
+        // Log kanalına bildirim gönder
         if (config.logChannelId) {
             try {
                 const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
                 if (logChannel && logChannel.isTextBased()) {
-        
-                    const attachment = new AttachmentBuilder(filePath)
+                    // Önce dosyayı oluştur
+                    const attachment = new AttachmentBuilder(fs.readFileSync(filePath))
                         .setName(fileName);
-        
+                    
+                    // Önce dosyayı gönder
+                    const fileMessage = await logChannel.send({
+                        files: [attachment]
+                    });
+                    
+                    // Sonra components mesajını gönder
                     const logMessage = {
                         flags: 32768,
                         components: [
@@ -715,22 +721,32 @@ async function handleTicketCloseConfirm(interaction) {
                                     },
                                     {
                                         type: 10,
-                                        content: '📎 **Log file attached below**'
+                                        content: `📎 **Log file:** [Download here](${fileMessage.attachments.first()?.url || '#'})`
                                     }
                                 ]
                             }
-                        ],
-                        files: [attachment]
+                        ]
                     };
-        
+                    
                     await logChannel.send(logMessage);
                     console.log(`Ticket closure log sent to ${logChannel.name}`);
                 }
             } catch (e) {
                 console.log('Ticket close log error:', e.message);
+                // Hata olursa sadece dosyayı gönder
+                try {
+                    const logChannel = await interaction.guild.channels.fetch(config.logChannelId);
+                    const attachment = new AttachmentBuilder(fs.readFileSync(filePath))
+                        .setName(fileName);
+                    await logChannel.send({
+                        content: `🔒 Ticket ${ticket.id} closed by <@${interaction.user.id}>`,
+                        files: [attachment]
+                    });
+                } catch (err) {
+                    console.log('Simple log send error:', err.message);
+                }
             }
         }
-
 
         // Geçici log dosyasını sil
         setTimeout(() => fs.unlink(filePath, () => {}), 5000);
