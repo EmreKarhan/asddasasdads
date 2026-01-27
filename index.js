@@ -16,7 +16,6 @@ const {
     Events,
     ActivityType
 } = require('discord.js');
-const path = require('path');
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
@@ -125,8 +124,8 @@ client.on('interactionCreate', async interaction => {
         console.error('Interaction error:', error);
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
-                content: '<:GreenClose:1465658452729921589> Bir hata oluştu!',
-                flags: MessageFlags.Ephemeral
+                content: '<:GreenClose:1465658452729921589> An error has occurred!',
+                ephemeral: true
             }).catch(() => {});
         }
     }
@@ -140,7 +139,7 @@ async function handleCategoryButton(interaction) {
         if (!category) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> Invalid category!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -150,7 +149,7 @@ async function handleCategoryButton(interaction) {
         if (active) {
             return await interaction.reply({
                 content: '🇹🇷 Zaten açık bir ticketın var.\n🇬🇧 You already have an open ticket.',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -198,7 +197,7 @@ async function handleCategoryButton(interaction) {
         if (!questions || questions.length === 0) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> This category is temporarily unavailable.',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -230,7 +229,7 @@ async function handleCategoryButton(interaction) {
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
                 content: '<:GreenClose:1465658452729921589> Hata oluştu', 
-                flags: MessageFlags.Ephemeral 
+                ephemeral: true 
             }).catch(console.error);
         }
     }
@@ -241,11 +240,11 @@ async function handleTicketCommand(interaction) {
         if (interaction.user.id !== config.ownerId) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> Only the server owner can use this command!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        await interaction.deferReply({ ephemeral: true });
 
         const targetChannel = interaction.options.getChannel('channel');
 
@@ -314,7 +313,7 @@ async function handleTicketCommand(interaction) {
         } else {
             await interaction.reply({
                 content: `<:GreenClose:1465658452729921589> Error: ${error.message}`,
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
     }
@@ -329,7 +328,7 @@ async function handleModalSubmit(interaction) {
 
         await interaction.reply({
             content: '🔄 Creating your ticket...',
-            flags: MessageFlags.Ephemeral
+            ephemeral: true
         });
 
         const ticketId = `ticket-${Date.now().toString().slice(-6)}`;
@@ -486,7 +485,7 @@ async function handleModalSubmit(interaction) {
         } else {
             await interaction.reply({ 
                 content: errorMsg,
-                flags: MessageFlags.Ephemeral 
+                ephemeral: true 
             });
         }
     }
@@ -500,7 +499,7 @@ async function handleTicketClose(interaction) {
         if (!ticket) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -514,13 +513,13 @@ async function handleTicketClose(interaction) {
             if (isTicketOwner) {
                 return await interaction.reply({
                     content: '<:GreenClose:1465658452729921589> Ticket owners cannot close tickets. Please ask support staff for assistance.',
-                    flags: MessageFlags.Ephemeral
+                    ephemeral: true
                 });
             }
             
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> Only support staff can close tickets!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -576,134 +575,144 @@ async function handleTicketClose(interaction) {
         console.error('Error in handleTicketClose:', error);
         await interaction.reply({
             content: '<:GreenClose:1465658452729921589> An error occurred!',
-            flags: MessageFlags.Ephemeral
+            ephemeral: true
         });
     }
 }
 
 async function handleTicketCloseConfirm(interaction) {
-    try {
-        const channel = interaction.channel;
-        const ticket = ticketData[channel.id];
+  try {
+    await interaction.deferReply({ ephemeral: true });
 
-        if (!ticket) {
-            return await interaction.followUp({
-                content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
-                ephemeral: true
-            });
-        }
+    const channel = interaction.channel;
+    const ticket = ticketData[channel.id];
 
-        const member = interaction.member;
-        const isSupportStaff = hasSupportPermission(member);
-        const isServerOwner = interaction.user.id === config.ownerId;
-
-        if (!isSupportStaff && !isServerOwner) {
-            return await interaction.followUp({
-                content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!',
-                ephemeral: true
-            });
-        }
-
-        await interaction.followUp({
-            content: '<:GreenLock:1465656103801979124> Ticket is closing...',
-            ephemeral: true
-        });
-
-        const messages = await channel.messages.fetch({ limit: 100 });
-        const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-        const logLines = [];
-
-        logLines.push('==============================');
-        logLines.push('        RUZYSOFT TICKET LOG   ');
-        logLines.push('==============================');
-        logLines.push(`Ticket ID   : ${ticket.id}`);
-        logLines.push(`Category    : ${config.categories[ticket.category]?.name}`);
-        logLines.push(`Opened By   : ${ticket.userTag} (${ticket.userId})`);
-        logLines.push(`Closed By   : ${interaction.user.tag} (${interaction.user.id})`);
-        logLines.push(`Opened At   : ${new Date(ticket.createdAt).toLocaleString()}`);
-        logLines.push(`Closed At   : ${new Date().toLocaleString()}`);
-        logLines.push(`Channel     : ${channel.name}`);
-        logLines.push('------------------------------');
-        logLines.push('Messages:');
-        logLines.push('------------------------------');
-
-        sortedMessages.forEach(msg => {
-            const time = msg.createdAt.toLocaleString();
-            const author = msg.author.tag;
-            const content = msg.content || '[Attachment/Embed]';
-
-            logLines.push(`[${time}] ${author}: ${content}`);
-
-            if (msg.attachments.size > 0) {
-                msg.attachments.forEach(att => {
-                    logLines.push(`   [Attachment] ${att.url}`);
-                });
-            }
-        });
-
-        logLines.push('==============================');
-
-        const logText = logLines.join('\n');
-        const fileName = `ticket-${ticket.id}.txt`;
-        const filePath = path.join(__dirname, fileName);
-
-        fs.writeFileSync(filePath, logText, 'utf8');
-
-        if (config.logChannelId) {
-            try {
-                const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
-
-                if (logChannel) {
-                    const botMember = await interaction.guild.members.fetchMe();
-                    const perms = logChannel.permissionsFor(botMember);
-
-                    if (
-                        perms.has(PermissionFlagsBits.ViewChannel) &&
-                        perms.has(PermissionFlagsBits.SendMessages) &&
-                        perms.has(PermissionFlagsBits.AttachFiles)
-                    ) {
-                        const attachment = new AttachmentBuilder(filePath);
-
-                        await logChannel.send({
-                            content:
-                                `🔒 **Ticket Closed**\n` +
-                                `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
-                                `🎫 Ticket ID: ${ticket.id}\n` +
-                                `📁 Channel: ${channel.name}`,
-                            files: [attachment]
-                        });
-                    }
-                }
-            } catch (e) {
-                console.log('Log channel error (ignored):', e.message);
-            }
-        }
-        setTimeout(() => {
-            fs.unlink(filePath, () => {});
-        }, 5000);
-
-        ticket.status = 'closed';
-        ticket.closedAt = Date.now();
-        ticket.closedBy = interaction.user.id;
-        setTimeout(async () => {
-            try {
-                await channel.delete(`Ticket closed by ${interaction.user.tag}`);
-                delete ticketData[channel.id];
-            } catch (err) {
-                console.error('Channel delete error:', err);
-            }
-        }, 5000);
-
-    } catch (error) {
-        console.error('Error in handleTicketCloseConfirm:', error);
+    if (!ticket) {
+      return await interaction.editReply({
+        content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!'
+      });
     }
+
+    const member = interaction.member;
+    const isSupportStaff = hasSupportPermission(member);
+    const isServerOwner = interaction.user.id === config.ownerId;
+
+    if (!isSupportStaff && !isServerOwner) {
+      return await interaction.editReply({
+        content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!'
+      });
+    }
+
+    await interaction.editReply({
+      content: '<:GreenLock:1465656103801979124> Ticket is closing...'
+    });
+
+    // Log dosyası oluştur
+    const messages = await channel.messages.fetch({ limit: 100 });
+    const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    const logLines = [];
+    logLines.push('==============================');
+    logLines.push('        RUZYSOFT TICKET LOG   ');
+    logLines.push('==============================');
+    logLines.push(`Ticket ID   : ${ticket.id}`);
+    logLines.push(`Category    : ${config.categories[ticket.category]?.name}`);
+    logLines.push(`Opened By   : ${ticket.userTag} (${ticket.userId})`);
+    logLines.push(`Closed By   : ${interaction.user.tag} (${interaction.user.id})`);
+    logLines.push(`Opened At   : ${new Date(ticket.createdAt).toLocaleString()}`);
+    logLines.push(`Closed At   : ${new Date().toLocaleString()}`);
+    logLines.push(`Channel     : ${channel.name}`);
+    logLines.push('------------------------------');
+    logLines.push('Messages:');
+    logLines.push('------------------------------');
+
+    sortedMessages.forEach(msg => {
+      const time = msg.createdAt.toLocaleString();
+      const author = msg.author.tag;
+      const content = msg.content || '[Attachment/Embed]';
+      logLines.push(`[${time}] ${author}: ${content}`);
+
+      if (msg.attachments.size > 0) {
+        msg.attachments.forEach(att => logLines.push(`   [Attachment] ${att.url}`));
+      }
+    });
+
+    logLines.push('==============================');
+
+    const logText = logLines.join('\n');
+    const fileName = `ticket-${ticket.id}.txt`;
+    const filePath = path.join(__dirname, fileName);
+
+    fs.writeFileSync(filePath, logText, 'utf8');
+
+    // Log kanalına gönder
+    if (config.logChannelId) {
+      try {
+        const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
+        if (logChannel) {
+          const botMember = await interaction.guild.members.fetchMe();
+          const perms = logChannel.permissionsFor(botMember);
+
+          if (
+            perms.has(PermissionFlagsBits.ViewChannel) &&
+            perms.has(PermissionFlagsBits.SendMessages) &&
+            perms.has(PermissionFlagsBits.AttachFiles)
+          ) {
+            await logChannel.send({
+              content:
+                `🔒 **Ticket Closed**\n` +
+                `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
+                `🎫 Ticket ID: ${ticket.id}\n` +
+                `📁 Channel: ${channel.name}`,
+              files: [new AttachmentBuilder(filePath)]
+            });
+          }
+        }
+      } catch (e) {
+        console.log('Log channel error (ignored):', e.message);
+      }
+    }
+
+    // temp log sil
+    setTimeout(() => fs.unlink(filePath, () => {}), 5000);
+
+    ticket.status = 'closed';
+    ticket.closedAt = Date.now();
+    ticket.closedBy = interaction.user.id;
+
+    // kanal sil
+    setTimeout(async () => {
+      try {
+        await channel.delete(`Ticket closed by ${interaction.user.tag}`);
+        delete ticketData[channel.id];
+      } catch (err) {
+        console.error('Channel delete error:', err);
+      }
+    }, 5000);
+
+  } catch (error) {
+    console.error('Error in handleTicketCloseConfirm:', error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: 'Error', ephemeral: true }).catch(() => {});
+    }
+  }
 }
 
 async function handleTicketCloseCancel(interaction) {
-    await interaction.update({
+  try {
+    return await interaction.reply({
+      content: '<:GreenConfirm:1465658485873180733> Ticket closure cancelled.',
+      ephemeral: true
+    });
+  } catch (e) {
+    // interaction daha önce yanıtlandıysa followUp
+    if (interaction.deferred || interaction.replied) {
+      return await interaction.followUp({
         content: '<:GreenConfirm:1465658485873180733> Ticket closure cancelled.',
         ephemeral: true
-    });
+      }).catch(() => {});
+    }
+  }
 }
 
 async function handleTicketDelete(interaction) {
@@ -714,7 +723,7 @@ async function handleTicketDelete(interaction) {
         if (!ticket) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -726,13 +735,13 @@ async function handleTicketDelete(interaction) {
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> Only support staff can delete tickets!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
         await interaction.reply({
             content: '🗑️ Deleting ticket...',
-            flags: MessageFlags.Ephemeral
+            ephemeral: true
         });
 
         // Delete ticket data
@@ -745,7 +754,7 @@ async function handleTicketDelete(interaction) {
         console.error('Error in handleTicketDelete:', error);
         await interaction.reply({
             content: '<:GreenClose:1465658452729921589> Error deleting ticket!',
-            flags: MessageFlags.Ephemeral
+            ephemeral: true
         });
     }
 }
