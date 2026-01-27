@@ -150,7 +150,7 @@ async function handleCategoryButton(interaction) {
 
         if (active) {
             return await interaction.reply({
-                content: '❌ Zaten açık bir ticketın var!',
+                content: '🇹🇷 Zaten açık bir ticketın var!\n🇬🇧 You already have an open ticket!',
                 flags: MessageFlags.Ephemeral
             });
         }
