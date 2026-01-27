@@ -341,7 +341,6 @@ async function handleModalSubmit(interaction) {
 
         const ticketId = `ticket-${Date.now().toString().slice(-6)}`;
         const safeName = user.username.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 20);
-        // YENİ KANAL İSMİ: ticket-username-123456
         const channelName = `ticket-${safeName}-${ticketId.slice(-6)}`;
 
         console.log(`Creating ticket for ${user.tag} with ID: ${ticketId}`);
@@ -350,13 +349,12 @@ async function handleModalSubmit(interaction) {
             name: channelName,
             type: ChannelType.GuildText,
             parent: config.ticketCategoryId || null,
-            topic: `Ticket ID: ${ticketId} | User: ${user.tag} | Category: ${category.name}`,
+            topic: `Ticket ID: ${ticketId} | User: ${user.tag}`,
             reason: `Ticket created by ${user.tag}`
         });
 
         console.log(`Channel created: ${channel.id}`);
 
-        // SAVE DATA
         ticketData[channel.id] = {
             id: ticketId,
             userId: user.id,
@@ -368,7 +366,6 @@ async function handleModalSubmit(interaction) {
             channelId: channel.id
         };
 
-        // SET PERMISSIONS
         try {
             await channel.permissionOverwrites.edit(guild.id, {
                 ViewChannel: false
@@ -412,7 +409,7 @@ async function handleModalSubmit(interaction) {
             console.log('Permission error (continuing):', permError.message);
         }
 
-        // User information
+        // First, send the user information with ticket details
         let questions = [];
         switch (categoryKey) {
             case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
@@ -421,57 +418,61 @@ async function handleModalSubmit(interaction) {
             case 'media': questions = ['Social Media Profile', 'Username', 'Video URL', 'Collaboration Proposal']; break;
             case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
         }
-
-        // Create user info message
-        let userInfoContent = `# ${category.emoji} ${category.name} Ticket\n`;
-        userInfoContent += `**Ticket ID:** \`${ticketId}\`\n`;
-        userInfoContent += `**User:** ${user} (${user.tag})\n`;
-        userInfoContent += `**Category:** ${category.name}\n`;
-        userInfoContent += `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n\n`;
-        userInfoContent += `**User Information:**\n`;
-
-        for (let i = 0; i < questions.length; i++) {
-            const answer = interaction.fields.getTextInputValue(`question_${i}`);
-            if (answer && answer.trim()) {
-                userInfoContent += `**${questions[i]}:** ${answer.substring(0, 500)}\n`;
-            }
-        }
-
-        // Mention support roles
-        let mentionText = '';
-        if (config.ticketRoleId && config.ticketRoleId.length > 0) {
-            mentionText = config.ticketRoleId.map(r => `<@&${r}>`).join(' ');
-        }
-
-        // Send user info first
-        await channel.send({
-            content: `${user} ${mentionText}\n${userInfoContent}`
-        });
-
-        // WELCOME MESSAGE - Basit embed ile
-        const welcomeEmbed = new EmbedBuilder()
-            .setColor(0x5865F2)
-            .setTitle(`👋 Welcome ${user.username}!`)
-            .setDescription(`Thank you for contacting **RuzySoft Support**.\nOur team will assist you shortly.\n\n**Please provide:**\n- Detailed description\n- Screenshots if needed\n- Error messages\n\n⚠️ **Do not share your product key publicly!**`)
-            .setTimestamp();
-
-        // CLOSE BUTTON
-        const closeButton = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('close_ticket')
-                    .setLabel('Close Ticket')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🔒')
-            );
-
-        // Send welcome message with button
-        await channel.send({
-            embeds: [welcomeEmbed],
-            components: [closeButton]
-        });
-
-        // Update interaction reply
+        const ticketMessage = {
+            flags: 32768,
+            components: [
+                {
+                    type: 17, 
+                    components: [
+                        {
+                            type: 12, 
+                            items: [
+                                {
+                                    media: {
+                                        url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            type: 10, 
+                            content: `${user} | ${roleId}\Choise: @staff`
+                        },
+                        {
+                            type: 14, 
+                            divider: false
+                        },
+                        {
+                            type: 14, 
+                            divider: false
+                        },
+                        {
+                            type: 10, 
+                            content: '# Welcome To Ruzy Support\nPlease describe your inquiry below. Our staff will be with you shortly.'
+                        },
+                        {
+                            type: 1, // Action Row Component
+                            components: [
+                                {
+                                    style: 2, 
+                                    type: 2, 
+                                    label: 'Close Ticket',
+                                    emoji: { name: '🔒' },
+                                    custom_id: 'close_ticket'
+                                },
+                                {
+                                    style: 4, // Danger style
+                                    type: 2, // Button
+                                    label: 'Delete',
+                                    custom_id: 'delete_ticket'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+        await channel.send(ticketMessage);
         await interaction.editReply({
             content: `✅ Ticket created: ${channel}`
         });
