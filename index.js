@@ -126,7 +126,7 @@ client.on('interactionCreate', async interaction => {
         console.error('Interaction error:', error);
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
-                content: '❌ Bir hata oluştu!',
+                content: '<:GreenClose:1465658452729921589> Bir hata oluştu!',
                 flags: MessageFlags.Ephemeral
             }).catch(() => {});
         }
@@ -140,7 +140,7 @@ async function handleCategoryButton(interaction) {
 
         if (!category) {
             return await interaction.reply({
-                content: '❌ Geçersiz kategori!',
+                content: '<:GreenClose:1465658452729921589> Geçersiz kategori!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -226,7 +226,7 @@ async function handleCategoryButton(interaction) {
         // Diğer hatalar için
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({ 
-                content: '❌ Hata oluştu', 
+                content: '<:GreenClose:1465658452729921589> Hata oluştu', 
                 flags: MessageFlags.Ephemeral 
             }).catch(console.error);
         }
@@ -237,7 +237,7 @@ async function handleTicketCommand(interaction) {
     try {
         if (interaction.user.id !== config.ownerId) {
             return await interaction.reply({
-                content: '❌ Only the server owner can use this command!',
+                content: '<:GreenClose:1465658452729921589> Only the server owner can use this command!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -248,7 +248,7 @@ async function handleTicketCommand(interaction) {
 
         if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
             return await interaction.editReply({
-                content: '❌ Please select a valid text channel!'
+                content: '<:GreenClose:1465658452729921589> Please select a valid text channel!'
             });
         }
 
@@ -299,18 +299,18 @@ async function handleTicketCommand(interaction) {
         await targetChannel.send(panelMessage);
 
         await interaction.editReply({
-            content: `✅ RuzySoft ticket panel sent to ${targetChannel}`
+            content: `<:GreenConfirm:1465658485873180733> RuzySoft ticket panel sent to ${targetChannel}`
         });
 
     } catch (error) {
         console.error('Error in handleTicketCommand:', error);
         if (interaction.deferred || interaction.replied) {
             await interaction.editReply({
-                content: `❌ Error: ${error.message}`
+                content: `<:GreenClose:1465658452729921589> Error: ${error.message}`
             });
         } else {
             await interaction.reply({
-                content: `❌ Error: ${error.message}`,
+                content: `<:GreenClose:1465658452729921589> Error: ${error.message}`,
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -449,13 +449,12 @@ async function handleModalSubmit(interaction) {
                                 {
                                     style: 2, 
                                     type: 2, 
-                                    label: 'Close Ticket',
-                                    emoji: { name: '🔒' },
+                                    label: '<:GreenConfirm:1465658485873180733> Close Ticket',
                                     custom_id: 'close_ticket'
                                 },
                                 {
-                                    style: 4, // Danger style
-                                    type: 2, // Button
+                                    style: 4, 
+                                    type: 2,
                                     label: 'Delete',
                                     custom_id: 'delete_ticket'
                                 }
@@ -467,15 +466,15 @@ async function handleModalSubmit(interaction) {
         };
         await channel.send(ticketMessage);
         await interaction.editReply({
-            content: `✅ Ticket created: ${channel}`
+            content: `<:GreenConfirm:1465658485873180733> Ticket created: ${channel}`
         });
 
     } catch (error) {
         console.error('Fatal error in handleModalSubmit:', error);
         
-        let errorMsg = '❌ Error creating ticket! ';
+        let errorMsg = '<:GreenClose:1465658452729921589> Error creating ticket! ';
         if (error.code === 50013) {
-            errorMsg = '❌ Bot lacks permissions. Please give bot Manage Channels permission!';
+            errorMsg = '<:GreenClose:1465658452729921589> Bot lacks permissions. Please give bot Manage Channels permission!';
         }
         
         if (interaction.replied || interaction.deferred) {
@@ -496,7 +495,7 @@ async function handleTicketClose(interaction) {
 
         if (!ticket) {
             return await interaction.reply({
-                content: '❌ This is not a valid ticket channel!',
+                content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -510,13 +509,13 @@ async function handleTicketClose(interaction) {
         if (!isSupportStaff && !isServerOwner) {
             if (isTicketOwner) {
                 return await interaction.reply({
-                    content: '❌ Ticket owners cannot close tickets. Please ask support staff for assistance.',
+                    content: '<:GreenClose:1465658452729921589> Ticket owners cannot close tickets. Please ask support staff for assistance.',
                     flags: MessageFlags.Ephemeral
                 });
             }
             
             return await interaction.reply({
-                content: '❌ Only support staff can close tickets!',
+                content: '<:GreenClose:1465658452729921589> Only support staff can close tickets!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -551,15 +550,13 @@ async function handleTicketClose(interaction) {
                                 {
                                     type: 2,
                                     style: 4, // Danger
-                                    label: 'Confirm Close',
-                                    emoji: { name: '<:GreenConfirm:1465658485873180733>' },
+                                    label: '<:GreenConfirm:1465658485873180733> Confirm Close',
                                     custom_id: 'confirm_close'
                                 },
                                 {
                                     type: 2,
                                     style: 2, 
-                                    label: 'Cancel',
-                                    emoji: { name: '<:GreenClose:1465658452729921589>' },
+                                    label: '<:GreenClose:1465658452729921589> Cancel',
                                     custom_id: 'cancel_close'
                                 }
                             ]
@@ -572,7 +569,7 @@ async function handleTicketClose(interaction) {
     } catch (error) {
         console.error('Error in handleTicketClose:', error);
         await interaction.reply({
-            content: '❌ An error occurred!',
+            content: '<:GreenClose:1465658452729921589> An error occurred!',
             flags: MessageFlags.Ephemeral
         });
     }
@@ -585,7 +582,7 @@ async function handleTicketCloseConfirm(interaction) {
         
         if (!ticket) {
             return await interaction.reply({
-                content: '❌ This is not a ticket channel!',
+                content: '<:GreenClose:1465658452729921589> This is not a ticket channel!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -596,7 +593,7 @@ async function handleTicketCloseConfirm(interaction) {
         
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.update({
-                content: '❌ You are not authorized to close tickets!',
+                content: '<:GreenClose:1465658452729921589> You are not authorized to close tickets!',
                 components: []
             });
         }
@@ -670,7 +667,7 @@ async function handleTicketCloseConfirm(interaction) {
         } catch (error) {
             console.error('Error closing ticket:', error);
             await interaction.followUp({
-                content: '❌ Error closing ticket!',
+                content: '<:GreenClose:1465658452729921589> Error closing ticket!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -681,7 +678,7 @@ async function handleTicketCloseConfirm(interaction) {
 
 async function handleTicketCloseCancel(interaction) {
     await interaction.update({
-        content: '✅ Ticket closure cancelled.',
+        content: '<:GreenConfirm:1465658485873180733> Ticket closure cancelled.',
         components: []
     });
 }
@@ -693,7 +690,7 @@ async function handleTicketDelete(interaction) {
 
         if (!ticket) {
             return await interaction.reply({
-                content: '❌ This is not a valid ticket channel!',
+                content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -705,7 +702,7 @@ async function handleTicketDelete(interaction) {
         
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.reply({
-                content: '❌ Only support staff can delete tickets!',
+                content: '<:GreenClose:1465658452729921589> Only support staff can delete tickets!',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -724,7 +721,7 @@ async function handleTicketDelete(interaction) {
     } catch (error) {
         console.error('Error in handleTicketDelete:', error);
         await interaction.reply({
-            content: '❌ Error deleting ticket!',
+            content: '<:GreenClose:1465658452729921589> Error deleting ticket!',
             flags: MessageFlags.Ephemeral
         });
     }
