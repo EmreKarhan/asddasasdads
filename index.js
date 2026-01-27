@@ -583,7 +583,6 @@ async function handleTicketCloseConfirm(interaction) {
         const channel = interaction.channel;
         const ticket = ticketData[channel.id];
 
-        // Ticket kontrol
         if (!ticket) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
@@ -591,7 +590,6 @@ async function handleTicketCloseConfirm(interaction) {
             });
         }
 
-        // Yetki kontrol
         const member = interaction.member;
         const isSupportStaff = hasSupportPermission(member);
         const isServerOwner = interaction.user.id === config.ownerId;
@@ -613,7 +611,6 @@ async function handleTicketCloseConfirm(interaction) {
             });
         }
 
-        // 🔒 SADECE TIKLAYAN GÖRÜR (EPHEMERAL)
         await interaction.update({
             flags: 32768,
             components: [
@@ -622,18 +619,15 @@ async function handleTicketCloseConfirm(interaction) {
                     components: [
                         {
                             type: 10,
-                            content: '🔒 Ticket is closing...\nThis action has been logged.'
+                            content: '<:GreenLock:1465656103801979124> Ticket is closing...\nThis action has been logged.'
                         }
                     ]
                 }
             ]
         });
 
-        // ================== MESAJLARI ÇEK ==================
         const messages = await channel.messages.fetch({ limit: 100 });
         const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-
-        // ================== TXT LOG OLUŞTUR ==================
         const logLines = [];
 
         logLines.push('==============================');
@@ -674,8 +668,7 @@ async function handleTicketCloseConfirm(interaction) {
 
         fs.writeFileSync(filePath, logText, 'utf8');
 
-        // ================== LOG KANALINA AT ==================
-        const logChannel = interaction.guild.channels.cache.get(config.ticketLogChannelId);
+        const logChannel = interaction.guild.channels.cache.get(config.logChannelId);
 
         if (logChannel) {
             await logChannel.send({
@@ -688,17 +681,14 @@ async function handleTicketCloseConfirm(interaction) {
             });
         }
 
-        // ================== DOSYAYI SİL ==================
         fs.unlink(filePath, err => {
             if (err) console.error('Log file cleanup error:', err);
         });
 
-        // ================== TICKET STATE ==================
         ticket.status = 'closed';
         ticket.closedAt = Date.now();
         ticket.closedBy = interaction.user.id;
 
-        // ================== 10 SN SONRA KANALI SİL ==================
         setTimeout(async () => {
             try {
                 await channel.delete(`Ticket closed by ${interaction.user.tag}`);
@@ -706,7 +696,7 @@ async function handleTicketCloseConfirm(interaction) {
             } catch (err) {
                 console.error('Channel delete error:', err);
             }
-        }, 10000);
+        }, 5000);
 
     } catch (error) {
         console.error('Error in handleTicketCloseConfirm:', error);
