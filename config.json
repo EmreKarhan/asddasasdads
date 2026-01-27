@@ -12,29 +12,28 @@
     "embedColor": "#5865F2",
     "categories": {
         "payment": {
-            "name": "Payment Issue",
-            "description": "Payment, refund, or purchase problems",
-            "emoji": "💳"
+            "name": "Buy",
+            "emoji": "🛒",
+            "description": "Purchase products",
+            "style": 1
         },
         "support": {
-            "name": "Technical Support",
-            "description": "Cheat setup, errors, or technical issues",
-            "emoji": "🛠️"
-        },
-        "reseller": {
-            "name": "Reseller Application",
-            "description": "Apply to become a reseller",
-            "emoji": "🤝"
-        },
-        "media": {
-            "name": "Media/Partnership",
-            "description": "Collaborations and promotions",
-            "emoji": "📺"
+            "name": "Technical",
+            "emoji": "🔧",
+            "description": "Technical support",
+            "style": 2
         },
         "hwid": {
             "name": "HWID Reset",
-            "description": "Request HWID reset for cheat",
-            "emoji": "🔄"
+            "emoji": "🔄",
+            "description": "HWID reset requests",
+            "style": 4
+        },
+        "reseller": {
+            "name": "Other",
+            "emoji": "🤝",
+            "description": "Reseller inquiries",
+            "style": 3
         }
     }
 }
