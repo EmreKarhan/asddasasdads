@@ -158,25 +158,28 @@ async function handleCategoryButton(interaction) {
             });
         }
 
-        // Modal oluşturma kısmı (mevcut handleCategorySelection içinden kopyala)
+        // Modal oluştur
         const modal = new ModalBuilder()
             .setCustomId(`ticket_modal_${categoryKey}`)
             .setTitle(`${category.emoji} ${category.name} Ticket`);
 
-
+        // Modal'ı göster
         await interaction.showModal(modal);
-
-        // modal gösterildikten sonra ephemeral mesajı sil veya düzenle
-        // await interaction.deleteReply().catch(() => {});
+        
+        // ⚠️ BU KISIM ÇOK ÖNEMLİ ⚠️
+        // Modal gösterildikten sonra defer edilmiş mesajı SİL
+        await interaction.deleteReply().catch(() => {});
 
     } catch (err) {
         console.error(err);
-        if (!interaction.replied && !interaction.deferred) {
+        // Eğer defer edilmişse onu düzenle, yoksa yeni yanıt ver
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply({ content: '❌ Hata oluştu' }).catch(() => {});
+        } else {
             await interaction.reply({ content: '❌ Hata oluştu', ephemeral: true }).catch(() => {});
         }
     }
 }
-
 async function handleTicketCommand(interaction) {
     try {
         if (interaction.user.id !== config.ownerId) {
@@ -215,7 +218,7 @@ async function handleTicketCommand(interaction) {
                         },
                         {
                             type: 10, // Text component
-                            content: '# RUZYSOFT Support Center 🎫'
+                            content: '# RUZYSOFT Support Center 🎫\nIf the required information is not provided, your ticket will be automatically closed!'
                         },
                         {
                             type: 14, // Divider component
