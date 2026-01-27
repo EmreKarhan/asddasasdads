@@ -106,27 +106,76 @@ client.on('interactionCreate', async interaction => {
                 return await handleTicketCommand(interaction);
         }
 
-        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category')
-            return await handleCategorySelection(interaction);
-
-        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
-            return await handleModalSubmit(interaction);
-
+        // ──────────────── BUTONLAR ────────────────
         if (interaction.isButton()) {
+            if (interaction.customId.startsWith('ticket_')) {
+                return await handleCategoryButton(interaction);
+            }
             if (interaction.customId === 'close_ticket') return await handleTicketClose(interaction);
             if (interaction.customId === 'confirm_close') return await handleTicketCloseConfirm(interaction);
             if (interaction.customId === 'cancel_close') return await handleTicketCloseCancel(interaction);
         }
+
+        // ──────────────── MENÜ (eğer ileride kullanırsan) ────────────────
+        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category') {
+            return await handleCategorySelection(interaction);
+        }
+
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
+            return await handleModalSubmit(interaction);
+        }
+
     } catch (error) {
         console.error('Interaction error:', error);
-        if (interaction.isRepliable()) {
+        if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
-                content: '❌ An error occurred!',
-                flags: MessageFlags.Ephemeral
+                content: '❌ Bir hata oluştu!',
+                ephemeral: true
             }).catch(() => {});
         }
     }
 });
+
+async function handleCategoryButton(interaction) {
+    try {
+        // 3 saniye kuralını kırmak için hemen defer
+        await interaction.deferReply({ ephemeral: true });
+
+        const categoryKey = interaction.customId.replace('ticket_', '');
+        const category = config.categories[categoryKey];
+
+        if (!category) {
+            return await interaction.editReply({ content: '❌ Geçersiz kategori!' });
+        }
+
+        // aynı kullanıcı aktif ticket kontrolü
+        const active = Object.values(ticketData)
+            .find(t => t.userId === interaction.user.id && t.status === 'open');
+
+        if (active) {
+            return await interaction.editReply({
+                content: '❌ Zaten açık bir ticketın var!'
+            });
+        }
+
+        // Modal oluşturma kısmı (mevcut handleCategorySelection içinden kopyala)
+        const modal = new ModalBuilder()
+            .setCustomId(`ticket_modal_${categoryKey}`)
+            .setTitle(`${category.emoji} ${category.name} Ticket`);
+
+
+        await interaction.showModal(modal);
+
+        // modal gösterildikten sonra ephemeral mesajı sil veya düzenle
+        // await interaction.deleteReply().catch(() => {});
+
+    } catch (err) {
+        console.error(err);
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: '❌ Hata oluştu', ephemeral: true }).catch(() => {});
+        }
+    }
+}
 
 async function handleTicketCommand(interaction) {
     try {
