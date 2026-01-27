@@ -587,9 +587,9 @@ async function handleTicketCloseConfirm(interaction) {
         const ticket = ticketData[channel.id];
 
         if (!ticket) {
-            return await interaction.reply({
+            return await interaction.followUp({
                 content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
-                flags: MessageFlags.Ephemeral
+                ephemeral: true
             });
         }
 
@@ -598,18 +598,17 @@ async function handleTicketCloseConfirm(interaction) {
         const isServerOwner = interaction.user.id === config.ownerId;
 
         if (!isSupportStaff && !isServerOwner) {
-            return await interaction.update({
+            return await interaction.followUp({
                 content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!',
-                components: []
+                ephemeral: true
             });
         }
 
-        await interaction.update({
-            content: '<:GreenLock:1465656103801979124> Ticket is closing...\nThis action has been logged.',
-            components: []
+        await interaction.followUp({
+            content: '<:GreenLock:1465656103801979124> Ticket is closing...',
+            ephemeral: true
         });
 
-        // Log dosyası oluştur
         const messages = await channel.messages.fetch({ limit: 100 });
         const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
         const logLines = [];
@@ -650,47 +649,42 @@ async function handleTicketCloseConfirm(interaction) {
 
         fs.writeFileSync(filePath, logText, 'utf8');
 
-        // Log kanalına gönder (eğer varsa ve botun izni varsa)
         if (config.logChannelId) {
             try {
                 const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
-                
+
                 if (logChannel) {
                     const botMember = await interaction.guild.members.fetchMe();
-                    const botPermissions = logChannel.permissionsFor(botMember);
-                    
-                    if (botPermissions.has(PermissionFlagsBits.SendMessages) && 
-                        botPermissions.has(PermissionFlagsBits.AttachFiles)) {
-                        
+                    const perms = logChannel.permissionsFor(botMember);
+
+                    if (
+                        perms.has(PermissionFlagsBits.ViewChannel) &&
+                        perms.has(PermissionFlagsBits.SendMessages) &&
+                        perms.has(PermissionFlagsBits.AttachFiles)
+                    ) {
                         const attachment = new AttachmentBuilder(filePath);
-                        
+
                         await logChannel.send({
-                            content: `🔒 **Ticket Closed**\n` +
-                                    `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
-                                    `🎫 Ticket ID: ${ticket.id}\n` +
-                                    `📁 Channel: ${channel.name}`,
+                            content:
+                                `🔒 **Ticket Closed**\n` +
+                                `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
+                                `🎫 Ticket ID: ${ticket.id}\n` +
+                                `📁 Channel: ${channel.name}`,
                             files: [attachment]
                         });
                     }
                 }
-            } catch (logError) {
-                // Hata olursa görmezden gel, ticket kapatılmaya devam etsin
-                console.log('Log channel error (ignoring):', logError.message);
+            } catch (e) {
+                console.log('Log channel error (ignored):', e.message);
             }
         }
-
-        // Geçici dosyayı sil
         setTimeout(() => {
-            fs.unlink(filePath, err => {
-                if (err) console.error('Log file cleanup error:', err);
-            });
+            fs.unlink(filePath, () => {});
         }, 5000);
 
         ticket.status = 'closed';
         ticket.closedAt = Date.now();
         ticket.closedBy = interaction.user.id;
-
-        // 5 saniye sonra kanalı sil
         setTimeout(async () => {
             try {
                 await channel.delete(`Ticket closed by ${interaction.user.tag}`);
@@ -707,8 +701,8 @@ async function handleTicketCloseConfirm(interaction) {
 
 async function handleTicketCloseCancel(interaction) {
     await interaction.update({
-        flags: 32768,
-        components: [{ type:17, components:[{ type:10, content:'<:GreenConfirm:1465658485873180733> Ticket closure cancelled.'}]}]
+        content: '<:GreenConfirm:1465658485873180733> Ticket closure cancelled.',
+        ephemeral: true
     });
 }
 
