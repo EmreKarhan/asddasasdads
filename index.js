@@ -17,6 +17,7 @@ const {
     ActivityType
 } = require('discord.js');
 const fs = require('fs');
+const path = require('path');
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
 let ticketData = {};
@@ -525,6 +526,7 @@ async function handleTicketClose(interaction) {
 
         await interaction.reply({
             flags: 32768, 
+            ephemeral: true,
             components: [
                 {
                     type: 17, 
