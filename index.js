@@ -151,7 +151,7 @@ async function handleCategoryButton(interaction) {
 
         if (active) {
             return await interaction.reply({
-                content: '❌ Zaten açık bir ticketın var!',
+                content: '🇹🇷 Zaten açık bir ticketın var.\n🇬🇧 You already have an open ticket.',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -161,7 +161,6 @@ async function handleCategoryButton(interaction) {
             .setCustomId(`ticket_modal_${categoryKey}`)
             .setTitle(`${category.emoji} ${category.name} Ticket`);
 
-        // Questions ekle
         let questions = [];
         
         switch (categoryKey) {
@@ -173,32 +172,23 @@ async function handleCategoryButton(interaction) {
                 ];
                 break;
 
-            case 'support':
+            case 'technical':
                 questions = [
                     { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Product/Service', placeholder: 'Which product/service do you need help with?', required: true },
+                    { label: 'Error Message or Code', placeholder: '(if any)', required: false },
                     { label: 'Issue Description', placeholder: 'Describe your issue in detail...', required: true, style: TextInputStyle.Paragraph }
                 ];
                 break;
 
-            case 'reseller':
+            case 'other':
                 questions = [
                     { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Business Name', placeholder: 'Your business/brand name', required: true },
-                    { label: 'Monthly Sales Estimate', placeholder: 'Estimated monthly sales volume', required: true },
-                    { label: 'Previous Experience', placeholder: 'Describe your previous reseller experience', required: true, style: TextInputStyle.Paragraph }
+                    { label: 'Problem title', placeholder: 'Enter your problem title', required: true },
+                    { label: 'Please describe your problem in detail.', placeholder: 'Estimated monthly sales volume', required: true },
+                    { label: 'Reason', placeholder: 'What is the reason?', required: true, style: TextInputStyle.Paragraph }
                 ];
                 break;
-
-            case 'media':
-                questions = [
-                    { label: 'Social Media Profile', placeholder: 'TikTok/YouTube/Instagram link', required: true },
-                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Video URL', placeholder: 'Video URL (Required)', required: true },
-                    { label: 'Collaboration Proposal', placeholder: 'What kind of collaboration are you looking for?', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
+                
             case 'hwid':
                 questions = [
                     { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
@@ -309,7 +299,7 @@ async function handleTicketCommand(interaction) {
         await targetChannel.send(panelMessage);
 
         await interaction.editReply({
-            content: `✅ Premium ticket panel sent to ${targetChannel}`
+            content: `✅ RuzySoft ticket panel sent to ${targetChannel}`
         });
 
     } catch (error) {
@@ -413,9 +403,8 @@ async function handleModalSubmit(interaction) {
         let questions = [];
         switch (categoryKey) {
             case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
-            case 'support': questions = ['Username', 'Related Product/Service', 'Issue Description']; break;
-            case 'reseller': questions = ['Username', 'Business Name', 'Monthly Sales Estimate', 'Previous Experience']; break;
-            case 'media': questions = ['Social Media Profile', 'Username', 'Video URL', 'Collaboration Proposal']; break;
+            case 'technical': questions = ['Username', 'Error Message or Code (if any)', 'Issue Description']; break;
+            case 'other': questions = ['Username', 'Problem title', 'Detailed explanation', 'reason']; break;
             case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
         }
         const staffMentions = Array.isArray(config.ticketRoleId)
@@ -440,7 +429,7 @@ async function handleModalSubmit(interaction) {
                         },
                         {
                             type: 10, 
-                            content: `${user}\n🎧 **Staff:** ${staffMentions}`
+                            content: `${user} | ${staffMentions}`
                         },
                         {
                             type: 14, 
