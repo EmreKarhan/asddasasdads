@@ -64,7 +64,7 @@ client.once('ready', async () => {
             name: 'RuzySoft Ticket System',
             type: ActivityType.Watching
         }],
-        status: 'online'
+        status: 'dnd'
     });
 
     const guild = client.guilds.cache.get(config.guildId);
@@ -402,7 +402,51 @@ async function handleModalSubmit(interaction) {
             console.log('Permission error (continuing):', permError.message);
         }
 
-        // First, send the user information with ticket details
+        if (config.logChannelId) {
+            try {
+                const logChannel = await guild.channels.fetch(config.logChannelId).catch(() => null);
+                if (logChannel && logChannel.isTextBased()) {
+                    const logMessage = {
+                        flags: 32768,
+                        components: [
+                            {
+                                type: 17,
+                                components: [
+                                    {
+                                        type: 12,
+                                        items: [
+                                            {
+                                                media: {
+                                                    url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        type: 10,
+                                        content: '# 🎫 Ticket Created'
+                                    },
+                                    {
+                                        type: 14,
+                                        divider: false
+                                    },
+                                    {
+                                        type: 10,
+                                        content: `👤 **User:** ${user.tag} (${user.id})\n📁 **Channel:** ${channel}\n🆔 **Ticket ID:** ${ticketId}\n📂 **Category:** ${category.name}`
+                                    }
+                                ]
+                            }
+                        ]
+                    };
+                    
+                    await logChannel.send(logMessage);
+                    console.log(`Ticket creation log sent to ${logChannel.name}`);
+                }
+            } catch (logError) {
+                console.log('Ticket create log error:', logError.message);
+            }
+        }
+
         let questions = [];
         switch (categoryKey) {
             case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
@@ -583,111 +627,153 @@ async function handleTicketClose(interaction) {
 }
 
 async function handleTicketCloseConfirm(interaction) {
-  try {
-    await interaction.deferReply({ ephemeral: true });
+    try {
+        await interaction.deferReply({ ephemeral: true });
 
-    const channel = interaction.channel;
-    const ticket = ticketData[channel.id];
+        const channel = interaction.channel;
+        const ticket = ticketData[channel.id];
 
-    if (!ticket) {
-      return await interaction.editReply({
-        content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
-        ephemeral: true
-      });
-    }
+        if (!ticket) {
+            return await interaction.editReply({
+                content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
+                ephemeral: true
+            });
+        }
 
-    const member = interaction.member;
-    const isSupportStaff = hasSupportPermission(member);
-    const isServerOwner = interaction.user.id === config.ownerId;
+        const member = interaction.member;
+        const isSupportStaff = hasSupportPermission(member);
+        const isServerOwner = interaction.user.id === config.ownerId;
 
-    if (!isSupportStaff && !isServerOwner) {
-      return await interaction.editReply({
-        content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!',
-        ephemeral: true
-      });
-    }
+        if (!isSupportStaff && !isServerOwner) {
+            return await interaction.editReply({
+                content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!',
+                ephemeral: true
+            });
+        }
 
-    await interaction.editReply({
-      content: '<:GreenLock:1465656103801979124> Ticket is closing...',
-      ephemeral: true
-    });
-      
-    const messages = await channel.messages.fetch({ limit: 100 });
-    const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+        await interaction.editReply({
+            content: '<:GreenLock:1465656103801979124> Ticket is closing...',
+            ephemeral: true
+        });
+        
+        const messages = await channel.messages.fetch({ limit: 100 });
+        const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
-    const logLines = [];
-    logLines.push('==============================');
-    logLines.push('        RUZYSOFT TICKET LOG   ');
-    logLines.push('==============================');
-    logLines.push(`Ticket ID   : ${ticket.id}`);
-    logLines.push(`Category    : ${config.categories[ticket.category]?.name}`);
-    logLines.push(`Opened By   : ${ticket.userTag} (${ticket.userId})`);
-    logLines.push(`Closed By   : ${interaction.user.tag} (${interaction.user.id})`);
-    logLines.push(`Opened At   : ${new Date(ticket.createdAt).toLocaleString()}`);
-    logLines.push(`Closed At   : ${new Date().toLocaleString()}`);
-    logLines.push(`Channel     : ${channel.name}`);
-    logLines.push('------------------------------');
-    logLines.push('Messages:');
-    logLines.push('------------------------------');
+        const logLines = [];
+        logLines.push('==============================');
+        logLines.push('        RUZYSOFT TICKET LOG   ');
+        logLines.push('==============================');
+        logLines.push(`Ticket ID   : ${ticket.id}`);
+        logLines.push(`Category    : ${config.categories[ticket.category]?.name}`);
+        logLines.push(`Opened By   : ${ticket.userTag} (${ticket.userId})`);
+        logLines.push(`Closed By   : ${interaction.user.tag} (${interaction.user.id})`);
+        logLines.push(`Opened At   : ${new Date(ticket.createdAt).toLocaleString()}`);
+        logLines.push(`Closed At   : ${new Date().toLocaleString()}`);
+        logLines.push(`Channel     : ${channel.name}`);
+        logLines.push('------------------------------');
+        logLines.push('Messages:');
+        logLines.push('------------------------------');
 
-    sortedMessages.forEach(msg => {
-      const time = msg.createdAt.toLocaleString();
-      const author = msg.author.tag;
-      const content = msg.content || '[Attachment/Embed]';
-      logLines.push(`[${time}] ${author}: ${content}`);
+        sortedMessages.forEach(msg => {
+            const time = msg.createdAt.toLocaleString();
+            const author = msg.author.tag;
+            const content = msg.content || '[Attachment/Embed]';
+            logLines.push(`[${time}] ${author}: ${content}`);
 
-      if (msg.attachments.size > 0) {
-        msg.attachments.forEach(att => logLines.push(`   [Attachment] ${att.url}`));
-      }
-    });
-
-    logLines.push('==============================');
-
-    const logText = logLines.join('\n');
-    const fileName = `ticket-${ticket.id}.txt`;
-    const filePath = path.join(__dirname, fileName);
-
-    fs.writeFileSync(filePath, logText, 'utf8');
-
-    if (config.logChannelId) {
-        try {
-            const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
-            if (logChannel) {
-                await logChannel.send({
-                    content:
-                        `🎫 **Ticket Created**\n` +
-                        `👤 User: ${user.tag} (${user.id})\n` +
-                        `📁 Channel: ${channel}\n` +
-                        `🆔 Ticket ID: ${ticketId}`
-                });
+            if (msg.attachments.size > 0) {
+                msg.attachments.forEach(att => logLines.push(`   [Attachment] ${att.url}`));
             }
-        } catch (e) {
-            console.log('Ticket create log error:', e.message);
+        });
+
+        logLines.push('==============================');
+
+        const logText = logLines.join('\n');
+        const fileName = `ticket-${ticket.id}.txt`;
+        const filePath = path.join(__dirname, fileName);
+
+        fs.writeFileSync(filePath, logText, 'utf8');
+
+        // Log kanalına bildirim gönder (COMPONENTS İLE)
+        if (config.logChannelId) {
+            try {
+                const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
+                if (logChannel && logChannel.isTextBased()) {
+                    const attachment = new AttachmentBuilder(filePath)
+                        .setName(fileName)
+                        .setDescription(`Log for ticket ${ticket.id}`);
+                    
+                    const logMessage = {
+                        flags: 32768,
+                        components: [
+                            {
+                                type: 17,
+                                components: [
+                                    {
+                                        type: 12,
+                                        items: [
+                                            {
+                                                media: {
+                                                    url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        type: 10,
+                                        content: '# 🔒 Ticket Closed'
+                                    },
+                                    {
+                                        type: 14,
+                                        divider: false
+                                    },
+                                    {
+                                        type: 10,
+                                        content: `👤 **User:** <@${ticket.userId}>\n🛠️ **Closed by:** <@${interaction.user.id}>\n🎫 **Ticket ID:** ${ticket.id}\n📁 **Category:** ${config.categories[ticket.category]?.name || 'Unknown'}\n⏱️ **Duration:** ${Math.round((Date.now() - ticket.createdAt) / 60000)} minutes`
+                                    },
+                                    {
+                                        type: 14,
+                                        divider: false
+                                    },
+                                    {
+                                        type: 10,
+                                        content: `📎 **Log File:** ${fileName}`
+                                    }
+                                ]
+                            }
+                        ],
+                        files: [attachment]
+                    };
+                    
+                    await logChannel.send(logMessage);
+                    console.log(`Ticket closure log sent to ${logChannel.name}`);
+                }
+            } catch (e) {
+                console.log('Ticket close log error:', e.message);
+            }
+        }
+
+        // Geçici log dosyasını sil
+        setTimeout(() => fs.unlink(filePath, () => {}), 5000);
+
+        ticket.status = 'closed';
+        ticket.closedAt = Date.now();
+        ticket.closedBy = interaction.user.id;
+
+        setTimeout(async () => {
+            try {
+                await channel.delete(`Ticket closed by ${interaction.user.tag}`);
+                delete ticketData[channel.id];
+            } catch (err) {
+                console.error('Channel delete error:', err);
+            }
+        }, 5000);
+
+    } catch (error) {
+        console.error('Error in handleTicketCloseConfirm:', error);
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: 'Error', ephemeral: true }).catch(() => {});
         }
     }
-
-    // temp log sil
-    setTimeout(() => fs.unlink(filePath, () => {}), 5000);
-
-    ticket.status = 'closed';
-    ticket.closedAt = Date.now();
-    ticket.closedBy = interaction.user.id;
-
-    setTimeout(async () => {
-      try {
-        await channel.delete(`Ticket closed by ${interaction.user.tag}`);
-        delete ticketData[channel.id];
-      } catch (err) {
-        console.error('Channel delete error:', err);
-      }
-    }, 5000);
-
-  } catch (error) {
-    console.error('Error in handleTicketCloseConfirm:', error);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({ content: 'Error', ephemeral: true }).catch(() => {});
-    }
-  }
 }
 
 async function handleTicketCloseCancel(interaction) {
