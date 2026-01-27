@@ -2,7 +2,6 @@ const {
     Client,
     GatewayIntentBits,
     ActionRowBuilder,
-    StringSelectMenuBuilder,
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
@@ -10,7 +9,6 @@ const {
     ChannelType,
     ButtonBuilder,
     ButtonStyle,
-    AttachmentBuilder,
     MessageFlags,
     ActivityType
 } = require('discord.js');
@@ -25,8 +23,7 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessageReactions
+        GatewayIntentBits.GuildMembers
     ]
 });
 
@@ -99,23 +96,30 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     try {
+        console.log(`Interaction received: ${interaction.type} - ${interaction.customId || interaction.commandName}`);
+        
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'ticketpanel')
                 return await handleTicketCommand(interaction);
         }
 
-        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category')
-            return await handleCategorySelection(interaction);
-
-        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
-            return await handleModalSubmit(interaction);
-
         if (interaction.isButton()) {
+            console.log(`Button clicked: ${interaction.customId}`);
+            
             if (interaction.customId === 'close_ticket') return await handleTicketClose(interaction);
             if (interaction.customId === 'delete_ticket') return await handleTicketDelete(interaction);
             if (interaction.customId === 'confirm_close') return await handleTicketCloseConfirm(interaction);
             if (interaction.customId === 'cancel_close') return await handleTicketCloseCancel(interaction);
+            
+            // Handle ticket creation buttons
+            if (interaction.customId.startsWith('create_ticket_')) {
+                return await handleTicketCreation(interaction);
+            }
         }
+
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
+            return await handleModalSubmit(interaction);
+            
     } catch (error) {
         console.error('Interaction error:', error);
         if (interaction.isRepliable()) {
@@ -146,54 +150,40 @@ async function handleTicketCommand(interaction) {
             });
         }
 
-        // Components-based message - NO EMBEDS
-        const panelMessage = {
-            components: [
-                {
-                    type: 1, // Action Row
-                    components: [
-                        {
-                            type: 2, // Button
-                            style: 1, // Primary
-                            custom_id: 'ticket_payment',
-                            label: config.categories.payment.name,
-                            emoji: config.categories.payment.emoji
-                        },
-                        {
-                            type: 2,
-                            style: 2, // Secondary
-                            custom_id: 'ticket_support',
-                            label: config.categories.support.name,
-                            emoji: config.categories.support.emoji
-                        },
-                        {
-                            type: 2,
-                            style: 4, // Danger
-                            custom_id: 'ticket_hwid',
-                            label: config.categories.hwid.name,
-                            emoji: config.categories.hwid.emoji
-                        },
-                        {
-                            type: 2,
-                            style: 3, // Success
-                            custom_id: 'ticket_other',
-                            label: 'Other',
-                            emoji: '❓'
-                        }
-                    ]
-                }
-            ]
-        };
-
-        // Send image first
+        // Send image
         await targetChannel.send({
             content: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
         });
 
-        // Send text and buttons
+        // Create buttons for ticket categories
+        const buttonsRow = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('create_ticket_payment')
+                    .setLabel(config.categories.payment.name)
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji(config.categories.payment.emoji),
+                new ButtonBuilder()
+                    .setCustomId('create_ticket_support')
+                    .setLabel(config.categories.support.name)
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji(config.categories.support.emoji),
+                new ButtonBuilder()
+                    .setCustomId('create_ticket_hwid')
+                    .setLabel(config.categories.hwid.name)
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji(config.categories.hwid.emoji),
+                new ButtonBuilder()
+                    .setCustomId('create_ticket_other')
+                    .setLabel('Other')
+                    .setStyle(ButtonStyle.Success)
+                    .setEmoji('❓')
+            );
+
+        // Send panel message
         await targetChannel.send({
             content: '# RUZYSOFT Support Center 🎫\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n**Select category:**',
-            components: panelMessage.components
+            components: [buttonsRow]
         });
 
         await interaction.editReply({
@@ -215,19 +205,11 @@ async function handleTicketCommand(interaction) {
     }
 }
 
-// Handle button clicks for ticket creation
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isButton()) return;
-    
-    if (interaction.customId.startsWith('ticket_')) {
-        const categoryKey = interaction.customId.replace('ticket_', '');
-        await handleTicketButton(interaction, categoryKey);
-    }
-});
-
-async function handleTicketButton(interaction, categoryKey) {
+async function handleTicketCreation(interaction) {
     try {
-        // Map button categories to config categories
+        const categoryKey = interaction.customId.replace('create_ticket_', '');
+        
+        // Map button to actual category
         let actualCategory;
         switch(categoryKey) {
             case 'payment':
@@ -247,6 +229,8 @@ async function handleTicketButton(interaction, categoryKey) {
         }
         
         const category = config.categories[actualCategory];
+
+        // Check if user already has an open ticket
         const active = Object.values(ticketData)
             .find(t => t.userId === interaction.user.id && t.status === 'open');
 
@@ -322,7 +306,11 @@ async function handleTicketButton(interaction, categoryKey) {
 
         await interaction.showModal(modal);
     } catch (error) {
-        console.error('Error in handleTicketButton:', error);
+        console.error('Error in handleTicketCreation:', error);
+        await interaction.reply({
+            content: '❌ Failed to create ticket modal!',
+            flags: MessageFlags.Ephemeral
+        });
     }
 }
 
