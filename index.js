@@ -582,25 +582,36 @@ async function handleTicketCloseConfirm(interaction) {
     try {
         const channel = interaction.channel;
         const ticket = ticketData[channel.id];
-        
+
         if (!ticket) {
             return await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> This is not a ticket channel!',
                 flags: MessageFlags.Ephemeral
             });
         }
-        
+
         const member = interaction.member;
         const isSupportStaff = hasSupportPermission(member);
         const isServerOwner = interaction.user.id === config.ownerId;
-        
+
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.update({
                 flags: 32768,
-                components: [{ type:17, components:[{ type:10, content:'<:GreenClose:1465658452729921589> You are not authorized to close tickets!'}]}]
+                components: [
+                    {
+                        type: 17,
+                        components: [
+                            {
+                                type: 10,
+                                content: '<:GreenClose:1465658452729921589> You are not authorized to close tickets!'
+                            }
+                        ]
+                    }
+                ]
             });
         }
 
+        // ✅ SADECE TIKLAYAN GÖRÜR
         await interaction.update({
             flags: 32768,
             components: [
@@ -609,84 +620,52 @@ async function handleTicketCloseConfirm(interaction) {
                     components: [
                         {
                             type: 10,
-                            content: '🔄 Closing ticket...'
+                            content: '🔒 Ticket is closing...\nThis action has been logged.'
                         }
                     ]
                 }
             ]
         });
 
-
-        try {
-            const messages = await channel.messages.fetch({ limit: 100 });
-            const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-            
-            let transcript = `╔══════════════════════════════════════════════════╗\n`;
-            transcript += `║               RuzySoft Ticket Log                ║\n`;
-            transcript += `╠══════════════════════════════════════════════════╣\n`;
-            transcript += `║ Ticket ID: ${ticket.id}\n`;
-            transcript += `║ User: ${ticket.userTag} (${ticket.userId})\n`;
-            transcript += `║ Category: ${config.categories[ticket.category].name}\n`;
-            transcript += `║ Created: ${new Date(ticket.createdAt).toLocaleString()}\n`;
-            transcript += `║ Closed: ${new Date().toLocaleString()}\n`;
-            transcript += `║ Closed by: ${interaction.user.tag} (${interaction.user.id})\n`;
-            transcript += `╚══════════════════════════════════════════════════╝\n\n`;
-            
-            sortedMessages.forEach(msg => {
-                const timestamp = msg.createdAt.toLocaleString();
-                const author = msg.author.tag;
-                const content = msg.content || '[Attachment/Embed]';
-                
-                transcript += `[${timestamp}] ${author}: ${content}\n`;
-                if (msg.attachments.size > 0) {
-                    msg.attachments.forEach(att => {
-                        transcript += `       📎 Attachment: ${att.url}\n`;
-                    });
-                }
+        // ✅ LOG KANALI
+        const logChannel = interaction.guild.channels.cache.get(config.ticketLogChannelId);
+        if (logChannel) {
+            await logChannel.send({
+                content:
+                    `🔒 **Ticket Closed**\n` +
+                    `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
+                    `🎫 Ticket ID: ${ticket.id}\n` +
+                    `📂 Category: ${config.categories[ticket.category]?.name}\n` +
+                    `📁 Channel: ${channel.name}\n` +
+                    `🕒 Opened: <t:${Math.floor(ticket.createdAt / 1000)}:R>\n` +
+                    `🕒 Closed: <t:${Math.floor(Date.now() / 1000)}:R>`
             });
-            
-            const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
-            
-            const closeMessage = {
-                components: [
-                    {
-                        type: 17,
-                        components: [
-                            {
-                                type: 10,
-                                content: `# Ticket Closed\n\n**Closed by:** ${interaction.user}\n**Ticket ID:** ${ticket.id}\n**Duration:** ${duration} minutes\n\n*This channel will be deleted in 10 seconds...*`
-                            }
-                        ]
-                    }
-                ]
-            };
-            
-            await channel.send(closeMessage);
-            
-            // Update ticket data
-            ticket.status = 'closed';
-            ticket.closedAt = Date.now();
-            ticket.closedBy = interaction.user.id;
-            
-            // Wait 10 seconds and delete
-            setTimeout(async () => {
-                try {
-                    await channel.delete(`Ticket closed by staff: ${interaction.user.tag}`);
-                    delete ticketData[channel.id];
-                } catch (deleteError) {
-                    console.error('Error deleting channel:', deleteError);
-                }
-            }, 10000);
-            
-        } catch (error) {
-            console.error('Error closing ticket:', error);
-            await interaction.followUp({
+        }
+
+        // ticket state
+        ticket.status = 'closed';
+        ticket.closedAt = Date.now();
+        ticket.closedBy = interaction.user.id;
+
+        // ✅ 10 sn sonra sil
+        setTimeout(async () => {
+            try {
+                await channel.delete(`Ticket closed by ${interaction.user.tag}`);
+                delete ticketData[channel.id];
+            } catch (e) {
+                console.error('Channel delete error:', e);
+            }
+        }, 10000);
+
+    } catch (err) {
+        console.error('REAL close error:', err);
+
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({
                 content: '<:GreenClose:1465658452729921589> Error closing ticket!',
                 flags: MessageFlags.Ephemeral
             });
         }
-    } catch (error) {
-        console.error('Error in handleTicketCloseConfirm:', error);
     }
 }
 
