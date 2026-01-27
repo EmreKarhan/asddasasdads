@@ -267,10 +267,10 @@ async function handleTicketCommand(interaction) {
             flags: 32768,
             components: [
                 {
-                    type: 17, // Container component
+                    type: 17, 
                     components: [
                         {
-                            type: 12, // Media component
+                            type: 12,
                             items: [
                                 {
                                     media: {
@@ -280,7 +280,7 @@ async function handleTicketCommand(interaction) {
                             ]
                         },
                         {
-                            type: 10, // Text component
+                            type: 10, 
                             content: '# RUZYSOFT Support Center 🎫\nIf the required information is not provided, your ticket will be automatically closed!'
                         },
                         {
@@ -341,7 +341,8 @@ async function handleModalSubmit(interaction) {
 
         const ticketId = `ticket-${Date.now().toString().slice(-6)}`;
         const safeName = user.username.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 20);
-        const channelName = `${category.emoji}-${safeName}`;
+        // YENİ KANAL İSMİ: ticket-username-123456
+        const channelName = `ticket-${safeName}-${ticketId.slice(-6)}`;
 
         console.log(`Creating ticket for ${user.tag} with ID: ${ticketId}`);
         
@@ -349,7 +350,7 @@ async function handleModalSubmit(interaction) {
             name: channelName,
             type: ChannelType.GuildText,
             parent: config.ticketCategoryId || null,
-            topic: `Ticket ID: ${ticketId} | User: ${user.tag}`,
+            topic: `Ticket ID: ${ticketId} | User: ${user.tag} | Category: ${category.name}`,
             reason: `Ticket created by ${user.tag}`
         });
 
@@ -411,7 +412,7 @@ async function handleModalSubmit(interaction) {
             console.log('Permission error (continuing):', permError.message);
         }
 
-        // First, send the user information with ticket details
+        // User information
         let questions = [];
         switch (categoryKey) {
             case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
@@ -447,64 +448,28 @@ async function handleModalSubmit(interaction) {
             content: `${user} ${mentionText}\n${userInfoContent}`
         });
 
-        // Now send the container component message
-        const ticketMessage = {
-            flags: 32768, // Ephemeral flag (for embed-like appearance)
-            components: [
-                {
-                    type: 17, // Container Component
-                    components: [
-                        {
-                            type: 12, // Media Component
-                            items: [
-                                {
-                                    media: {
-                                        url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
-                                    }
-                                }
-                            ]
-                        },
-                        {
-                            type: 10, // Text Component
-                            content: `${user} | ${category.emoji} ${category.name} Ticket\nMod: @staff`
-                        },
-                        {
-                            type: 14, // Divider Component
-                            divider: false
-                        },
-                        {
-                            type: 14, // Divider Component
-                            divider: false
-                        },
-                        {
-                            type: 10, // Text Component
-                            content: '# Welcome To Ruzy Support\nPlease describe your inquiry below. Our staff will be with you shortly.'
-                        },
-                        {
-                            type: 1, // Action Row Component
-                            components: [
-                                {
-                                    style: 2, // Secondary style
-                                    type: 2, // Button
-                                    label: 'Close Ticket',
-                                    emoji: { name: '🔒' },
-                                    custom_id: 'close_ticket'
-                                },
-                                {
-                                    style: 4, // Danger style
-                                    type: 2, // Button
-                                    label: 'Delete',
-                                    custom_id: 'delete_ticket'
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        };
+        // WELCOME MESSAGE - Basit embed ile
+        const welcomeEmbed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle(`👋 Welcome ${user.username}!`)
+            .setDescription(`Thank you for contacting **RuzySoft Support**.\nOur team will assist you shortly.\n\n**Please provide:**\n- Detailed description\n- Screenshots if needed\n- Error messages\n\n⚠️ **Do not share your product key publicly!**`)
+            .setTimestamp();
 
-        // Send the container message
-        await channel.send(ticketMessage);
+        // CLOSE BUTTON
+        const closeButton = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('close_ticket')
+                    .setLabel('Close Ticket')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🔒')
+            );
+
+        // Send welcome message with button
+        await channel.send({
+            embeds: [welcomeEmbed],
+            components: [closeButton]
+        });
 
         // Update interaction reply
         await interaction.editReply({
@@ -562,46 +527,31 @@ async function handleTicketClose(interaction) {
             });
         }
 
-        // CONFIRM MESSAGE - Components-based
-        const confirmMessage = {
-            flags: 64,
-            components: [
-                {
-                    type: 17,
-                    components: [
-                        {
-                            type: 10,
-                            content: `# Confirm Ticket Closure\n\n**Staff Member:** ${interaction.user}\n**Ticket ID:** ${ticket.id}\n**Ticket Owner:** <@${ticket.userId}>\n**Category:** ${config.categories[ticket.category].name}\n\n⚠️ **This action cannot be undone!**\nThe channel will be permanently deleted.`
-                        },
-                        {
-                            type: 14,
-                            divider: false
-                        },
-                        {
-                            type: 1,
-                            components: [
-                                {
-                                    style: 4,
-                                    type: 2,
-                                    label: '✅ Confirm Close',
-                                    custom_id: 'confirm_close',
-                                    emoji: '🔒'
-                                },
-                                {
-                                    style: 2,
-                                    type: 2,
-                                    label: '❌ Cancel',
-                                    custom_id: 'cancel_close',
-                                    emoji: '❌'
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        };
+        // Basit embed ile confirmation
+        const confirmEmbed = new EmbedBuilder()
+            .setColor(0xFFA500)
+            .setTitle('Confirm Ticket Closure')
+            .setDescription(`**Staff Member:** ${interaction.user}\n**Ticket ID:** ${ticket.id}\n**Ticket Owner:** <@${ticket.userId}>\n**Category:** ${config.categories[ticket.category]?.name || 'Unknown'}\n\n⚠️ **This action cannot be undone!**\nThe channel will be permanently deleted.`);
 
-        await interaction.reply(confirmMessage);
+        const confirmButtons = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('confirm_close')
+                    .setLabel('✅ Confirm Close')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('🔒'),
+                new ButtonBuilder()
+                    .setCustomId('cancel_close')
+                    .setLabel('❌ Cancel')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('❌')
+            );
+
+        await interaction.reply({
+            embeds: [confirmEmbed],
+            components: [confirmButtons],
+            flags: MessageFlags.Ephemeral
+        });
         
     } catch (error) {
         console.error('Error in handleTicketClose:', error);
