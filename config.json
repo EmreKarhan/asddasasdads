@@ -16,7 +16,7 @@
             "description": "Purchase products",
             "style": 1
         },
-        "support": {
+        "techincal": {
             "name": "Technical",
             "description": "Technical support",
             "style": 2
@@ -26,7 +26,7 @@
             "description": "HWID reset requests",
             "style": 4
         },
-        "reseller": {
+        "other": {
             "name": "Other",
             "description": "Reseller inquiries",
             "style": 3
