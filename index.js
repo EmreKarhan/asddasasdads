@@ -418,6 +418,10 @@ async function handleModalSubmit(interaction) {
             case 'media': questions = ['Social Media Profile', 'Username', 'Video URL', 'Collaboration Proposal']; break;
             case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
         }
+        const staffMentions = Array.isArray(config.ticketRoleId)
+            ? config.ticketRoleId.map(r => `<@&${r}>`).join(' ')
+            : '@staff';
+        
         const ticketMessage = {
             flags: 32768,
             components: [
@@ -436,7 +440,7 @@ async function handleModalSubmit(interaction) {
                         },
                         {
                             type: 10, 
-                            content: `${user} | ${roleId}\Choise: @staff`
+                            content: `${user}\n🎧 **Staff:** ${staffMentions}`
                         },
                         {
                             type: 14, 
