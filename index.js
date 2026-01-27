@@ -58,14 +58,33 @@ function hasSupportPermission(member) {
 
 client.once('ready', async () => {
     console.log(`🔥 ${client.user.tag} is online!`);
-    
-    client.user.setPresence({
-        activities: [{
-            name: 'RuzySoft Ticket System',
+
+    const activities = [
+        {
+            name: 'RUZYSOFT.NET',
             type: ActivityType.Watching
-        }],
-        status: 'dnd'
+        },
+        {
+            name: 'discord.gg/pnTjcgSAMB',
+            type: ActivityType.Watching
+        }
+    ];
+
+    let index = 0;
+
+    client.user.setPresence({
+        activities: [activities[index]],
+        status: 'dnd' // istersen online / idle yapabilirsin
     });
+
+    setInterval(() => {
+        index = (index + 1) % activities.length;
+
+        client.user.setPresence({
+            activities: [activities[index]],
+            status: 'dnd'
+        });
+    }, 10000);
 
     const guild = client.guilds.cache.get(config.guildId);
     if (!guild) {
@@ -400,51 +419,6 @@ async function handleModalSubmit(interaction) {
 
         } catch (permError) {
             console.log('Permission error (continuing):', permError.message);
-        }
-
-        if (config.logChannelId) {
-            try {
-                const logChannel = await guild.channels.fetch(config.logChannelId).catch(() => null);
-                if (logChannel && logChannel.isTextBased()) {
-                    const logMessage = {
-                        flags: 32768,
-                        components: [
-                            {
-                                type: 17,
-                                components: [
-                                    {
-                                        type: 12,
-                                        items: [
-                                            {
-                                                media: {
-                                                    url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
-                                                }
-                                            }
-                                        ]
-                                    },
-                                    {
-                                        type: 10,
-                                        content: '# 🎫 Ticket Created'
-                                    },
-                                    {
-                                        type: 14,
-                                        divider: false
-                                    },
-                                    {
-                                        type: 10,
-                                        content: `👤 **User:** ${user.tag} (${user.id})\n📁 **Channel:** ${channel}\n🆔 **Ticket ID:** ${ticketId}\n📂 **Category:** ${category.name}`
-                                    }
-                                ]
-                            }
-                        ]
-                    };
-                    
-                    await logChannel.send(logMessage);
-                    console.log(`Ticket creation log sent to ${logChannel.name}`);
-                }
-            } catch (logError) {
-                console.log('Ticket create log error:', logError.message);
-            }
         }
 
         let questions = [];
