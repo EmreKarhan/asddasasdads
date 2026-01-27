@@ -116,10 +116,10 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'cancel_close') return await handleTicketCloseCancel(interaction);
         }
 
-        // ──────────────── MENÜ (eğer ileride kullanırsan) ────────────────
-        if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category') {
-            return await handleCategorySelection(interaction);
-        }
+        // EĞER STRING SELECT MENÜ KULLANMIYORSANIZ BU KISMI SİLEBİLİRSİNİZ
+        // if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_category') {
+        //     return await handleCategorySelection(interaction);
+        // }
 
         if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
             return await handleModalSubmit(interaction);
@@ -130,7 +130,7 @@ client.on('interactionCreate', async interaction => {
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
                 content: '❌ Bir hata oluştu!',
-                ephemeral: true
+                flags: MessageFlags.Ephemeral
             }).catch(() => {});
         }
     }
@@ -138,14 +138,14 @@ client.on('interactionCreate', async interaction => {
 
 async function handleCategoryButton(interaction) {
     try {
-        // 3 saniye kuralını kırmak için hemen defer
-        await interaction.deferReply({ ephemeral: true });
-
         const categoryKey = interaction.customId.replace('ticket_', '');
         const category = config.categories[categoryKey];
 
         if (!category) {
-            return await interaction.editReply({ content: '❌ Geçersiz kategori!' });
+            return await interaction.reply({
+                content: '❌ Geçersiz kategori!',
+                flags: MessageFlags.Ephemeral
+            });
         }
 
         // aynı kullanıcı aktif ticket kontrolü
@@ -153,8 +153,9 @@ async function handleCategoryButton(interaction) {
             .find(t => t.userId === interaction.user.id && t.status === 'open');
 
         if (active) {
-            return await interaction.editReply({
-                content: '❌ Zaten açık bir ticketın var!'
+            return await interaction.reply({
+                content: '❌ Zaten açık bir ticketın var!',
+                flags: MessageFlags.Ephemeral
             });
         }
 
@@ -163,23 +164,88 @@ async function handleCategoryButton(interaction) {
             .setCustomId(`ticket_modal_${categoryKey}`)
             .setTitle(`${category.emoji} ${category.name} Ticket`);
 
+        // Questions ekle
+        let questions = [];
+        
+        switch (categoryKey) {
+            case 'payment':
+                questions = [
+                    { label: 'Username', placeholder: 'Your username on RuzySoft website', required: true },
+                    { label: 'Product Name', placeholder: 'Enter the product you want to purchase', required: true },
+                    { label: 'Payment Method', placeholder: 'Credit Card / Crypto / PayPal / etc.', required: true }
+                ];
+                break;
+
+            case 'support':
+                questions = [
+                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
+                    { label: 'Product/Service', placeholder: 'Which product/service do you need help with?', required: true },
+                    { label: 'Issue Description', placeholder: 'Describe your issue in detail...', required: true, style: TextInputStyle.Paragraph }
+                ];
+                break;
+
+            case 'reseller':
+                questions = [
+                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
+                    { label: 'Business Name', placeholder: 'Your business/brand name', required: true },
+                    { label: 'Monthly Sales Estimate', placeholder: 'Estimated monthly sales volume', required: true },
+                    { label: 'Previous Experience', placeholder: 'Describe your previous reseller experience', required: true, style: TextInputStyle.Paragraph }
+                ];
+                break;
+
+            case 'media':
+                questions = [
+                    { label: 'Social Media Profile', placeholder: 'TikTok/YouTube/Instagram link', required: true },
+                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
+                    { label: 'Video URL', placeholder: 'Video URL (Required)', required: true },
+                    { label: 'Collaboration Proposal', placeholder: 'What kind of collaboration are you looking for?', required: true, style: TextInputStyle.Paragraph }
+                ];
+                break;
+
+            case 'hwid':
+                questions = [
+                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
+                    { label: 'Product Key', placeholder: 'Enter your valid product key', required: true },
+                    { label: 'HWID Reset Reason', placeholder: 'Why do you need HWID reset?', required: true, style: TextInputStyle.Paragraph }
+                ];
+                break;
+        }
+
+        questions.forEach((q, index) => {
+            const textInput = new TextInputBuilder()
+                .setCustomId(`question_${index}`)
+                .setLabel(q.label)
+                .setPlaceholder(q.placeholder)
+                .setRequired(q.required)
+                .setStyle(q.style || TextInputStyle.Short)
+                .setMaxLength(q.style === TextInputStyle.Paragraph ? 1000 : 100);
+            
+            const actionRow = new ActionRowBuilder().addComponents(textInput);
+            modal.addComponents(actionRow);
+        });
+
         // Modal'ı göster
         await interaction.showModal(modal);
-        
-        // ⚠️ BU KISIM ÇOK ÖNEMLİ ⚠️
-        // Modal gösterildikten sonra defer edilmiş mesajı SİL
-        await interaction.deleteReply().catch(() => {});
 
     } catch (err) {
-        console.error(err);
-        // Eğer defer edilmişse onu düzenle, yoksa yeni yanıt ver
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply({ content: '❌ Hata oluştu' }).catch(() => {});
-        } else {
-            await interaction.reply({ content: '❌ Hata oluştu', ephemeral: true }).catch(() => {});
+        console.error('Error in handleCategoryButton:', err);
+        
+        // Eğer hata "InteractionAlreadyReplied" ise, sadece logla
+        if (err.code === 'InteractionAlreadyReplied') {
+            console.log('Interaction already handled, ignoring...');
+            return;
+        }
+        
+        // Diğer hatalar için
+        if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ 
+                content: '❌ Hata oluştu', 
+                flags: MessageFlags.Ephemeral 
+            }).catch(console.error);
         }
     }
 }
+
 async function handleTicketCommand(interaction) {
     try {
         if (interaction.user.id !== config.ownerId) {
@@ -264,89 +330,7 @@ async function handleTicketCommand(interaction) {
     }
 }
 
-async function handleCategorySelection(interaction) {
-    try {
-        const selectedCategory = interaction.values[0];
-        const category = config.categories[selectedCategory];
 
-        const active = Object.values(ticketData)
-            .find(t => t.userId === interaction.user.id && t.status === 'open');
-
-        if (active) {
-            return await interaction.reply({
-                content: '❌ You already have an active ticket! Please close it before creating a new one.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId(`ticket_modal_${selectedCategory}`)
-            .setTitle(`${category.emoji} ${category.name} Ticket`);
-
-        let questions = [];
-        
-        switch (selectedCategory) {
-            case 'payment':
-                questions = [
-                    { label: 'Username', placeholder: 'Your username on RuzySoft website', required: true },
-                    { label: 'Product Name', placeholder: 'Enter the product you want to purchase', required: true },
-                    { label: 'Payment Method', placeholder: 'Credit Card / Crypto / PayPal / etc.', required: true }
-                ];
-                break;
-
-            case 'support':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Product/Service', placeholder: 'Which product/service do you need help with?', required: true },
-                    { label: 'Issue Description', placeholder: 'Describe your issue in detail...', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
-            case 'reseller':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Business Name', placeholder: 'Your business/brand name', required: true },
-                    { label: 'Monthly Sales Estimate', placeholder: 'Estimated monthly sales volume', required: true },
-                    { label: 'Previous Experience', placeholder: 'Describe your previous reseller experience', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
-            case 'media':
-                questions = [
-                    { label: 'Social Media Profile', placeholder: 'TikTok/YouTube/Instagram link', required: true },
-                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Video URL', placeholder: 'Video URL (Required)', required: true },
-                    { label: 'Collaboration Proposal', placeholder: 'What kind of collaboration are you looking for?', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
-            case 'hwid':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RuzySoft username', required: true },
-                    { label: 'Product Key', placeholder: 'Enter your valid product key', required: true },
-                    { label: 'HWID Reset Reason', placeholder: 'Why do you need HWID reset?', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-        }
-
-        questions.forEach((q, index) => {
-            const textInput = new TextInputBuilder()
-                .setCustomId(`question_${index}`)
-                .setLabel(q.label)
-                .setPlaceholder(q.placeholder)
-                .setRequired(q.required)
-                .setStyle(q.style || TextInputStyle.Short)
-                .setMaxLength(q.style === TextInputStyle.Paragraph ? 1000 : 100);
-            
-            const actionRow = new ActionRowBuilder().addComponents(textInput);
-            modal.addComponents(actionRow);
-        });
-
-        await interaction.showModal(modal);
-    } catch (error) {
-        console.error('Error in handleCategorySelection:', error);
-    }
-}
 
 async function handleModalSubmit(interaction) {
     try {
