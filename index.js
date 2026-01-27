@@ -596,15 +596,26 @@ async function handleTicketCloseConfirm(interaction) {
         
         if (!isSupportStaff && !isServerOwner) {
             return await interaction.update({
-                content: '<:GreenClose:1465658452729921589> You are not authorized to close tickets!',
-                components: []
+                flags: 32768,
+                components: [{ type:17, components:[{ type:10, content:'<:GreenClose:1465658452729921589> You are not authorized to close tickets!'}]}]
             });
         }
 
         await interaction.update({
-            content: '🔄 Closing ticket...',
-            components: []
+            flags: 32768,
+            components: [
+                {
+                    type: 17,
+                    components: [
+                        {
+                            type: 10,
+                            content: '🔄 Closing ticket...'
+                        }
+                    ]
+                }
+            ]
         });
+
 
         try {
             const messages = await channel.messages.fetch({ limit: 100 });
@@ -681,8 +692,8 @@ async function handleTicketCloseConfirm(interaction) {
 
 async function handleTicketCloseCancel(interaction) {
     await interaction.update({
-        content: '<:GreenConfirm:1465658485873180733> Ticket closure cancelled.',
-        components: []
+        flags: 32768,
+        components: [{ type:17, components:[{ type:10, content:'<:GreenConfirm:1465658485873180733> Ticket closure cancelled.'}]}]
     });
 }
 
