@@ -12,10 +12,7 @@ const {
     ButtonStyle,
     AttachmentBuilder,
     MessageFlags,
-    Events,
-    ActivityType,
-    Attachment,
-    MessageMentions
+    ActivityType
 } = require('discord.js');
 
 const fs = require('fs');
@@ -28,33 +25,201 @@ const client = new Client({
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessageReactions
+        GatewayIntentBits.GuildMembers
     ]
 });
 
-// Error handling
-client.on('error', (error) => {
-    console.log('Bot error:', error.message);
-});
+// CONTAINER STYLES - Discohook'taki gibi
+const containerStyles = {
+    header: (text) => `# ${text}\n`,
+    subheader: (text) => `## ${text}\n`,
+    section: (text) => `### ${text}\n`,
+    bold: (text) => `**${text}**`,
+    italic: (text) => `*${text}*`,
+    code: (text) => `\`${text}\``,
+    codeBlock: (text, lang = '') => `\`\`\`${lang}\n${text}\n\`\`\``,
+    listItem: (text) => `• ${text}\n`,
+    checkbox: (checked, text) => `- [${checked ? 'x' : ' '}] ${text}\n`,
+    divider: () => `---\n`,
+    quote: (text) => `> ${text}\n`,
+    spoiler: (text) => `||${text}||`,
+    link: (text, url) => `[${text}](${url})`,
+    timestamp: (time) => `<t:${Math.floor(time / 1000)}:R>`
+};
 
-process.on('unhandledRejection', (error) => {
-    console.log('Unhandled rejection:', error.message);
-});
+// CONTAINER BUILDER - Discohook benzeri sistem
+function createContainer(content, components = []) {
+    return {
+        content: content,
+        components: components
+    };
+}
 
-function hasSupportPermission(member) {
-    if (!config.ticketRoleId || !Array.isArray(config.ticketRoleId)) {
-        return false;
-    }
+// PANEL CONTAINER
+function createPanelContainer() {
+    const content = containerStyles.header('🎫 RurySoft Ticket System') +
+                   containerStyles.divider() +
+                   containerStyles.subheader('Get Professional Support') +
+                   'Need assistance? Create a ticket for fast, secure help.\n\n' +
+                   containerStyles.section('Key Features') +
+                   containerStyles.listItem('Private 1-on-1 support') +
+                   containerStyles.listItem('24/7 staff availability') +
+                   containerStyles.listItem('Secure communication') +
+                   containerStyles.listItem('Fast response times') +
+                   '\n' +
+                   containerStyles.section('Important') +
+                   containerStyles.checkbox(true, 'Provide accurate information') +
+                   containerStyles.checkbox(true, 'Be respectful to staff') +
+                   containerStyles.checkbox(false, 'Share sensitive data') +
+                   containerStyles.checkbox(false, 'Create duplicate tickets') +
+                   '\n' +
+                   containerStyles.divider() +
+                   containerStyles.bold('Status:') + ' 🟢 Online | ' +
+                   containerStyles.bold('Avg. Wait:') + ' < 15min\n' +
+                   containerStyles.code('Last updated: ' + new Date().toLocaleTimeString());
+
+    const buttonRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('create_ticket_btn')
+                .setLabel('Create Ticket')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('🎫'),
+            new ButtonBuilder()
+                .setCustomId('ticket_info_btn')
+                .setLabel('Info')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('ℹ️')
+        );
+
+    const selectRow = new ActionRowBuilder()
+        .addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('ticket_category_select')
+                .setPlaceholder('📁 Select category...')
+                .addOptions([
+                    { label: 'Technical Support', value: 'support', emoji: '🔧', description: 'Get help with products' },
+                    { label: 'Payment & Billing', value: 'payment', emoji: '💳', description: 'Payment issues & purchases' },
+                    { label: 'Reseller Program', value: 'reseller', emoji: '🤝', description: 'Partnership inquiries' },
+                    { label: 'Media & Collab', value: 'media', emoji: '🎬', description: 'Collaboration requests' },
+                    { label: 'HWID Reset', value: 'hwid', emoji: '🔄', description: 'Hardware ID reset' }
+                ])
+        );
+
+    return createContainer(content, [buttonRow, selectRow]);
+}
+
+// TICKET CONTAINER
+function createTicketContainer(ticketId, user, category, answers = []) {
+    const content = containerStyles.header(`🎫 ${category.name} Ticket`) +
+                   containerStyles.divider() +
+                   containerStyles.subheader('Ticket Information') +
+                   containerStyles.bold('Ticket ID:') + ' ' + containerStyles.code(ticketId) + '\n' +
+                   containerStyles.bold('User:') + ` ${user} (${user.tag})\n` +
+                   containerStyles.bold('Category:') + ` ${category.name}\n` +
+                   containerStyles.bold('Created:') + ` ${containerStyles.timestamp(Date.now())}\n` +
+                   containerStyles.bold('Status:') + ' 🟢 Open\n\n' +
+                   containerStyles.subheader('Provided Details');
     
-    if (member.id === config.ownerId) {
-        return true;
-    }
-    
-    return config.ticketRoleId.some(roleId => {
-        if (!roleId || typeof roleId !== 'string') return false;
-        return member.roles.cache.has(roleId);
+    let detailsContent = content;
+    answers.forEach((answer, index) => {
+        detailsContent += containerStyles.bold(`${answer.question}:`) + '\n' +
+                         containerStyles.codeBlock(answer.answer.substring(0, 200)) + '\n';
     });
+
+    detailsContent += '\n' +
+                     containerStyles.divider() +
+                     containerStyles.subheader('Assigned Staff') +
+                     (config.ticketRoleId && config.ticketRoleId.length > 0 ? 
+                      config.ticketRoleId.map(r => `<@&${r}>`).join(' ') : 
+                      'Awaiting assignment...') +
+                     '\n\n' +
+                     containerStyles.section('Instructions') +
+                     containerStyles.listItem('Wait for staff response') +
+                     containerStyles.listItem('Provide additional details if needed') +
+                     containerStyles.listItem('Do not share sensitive information') +
+                     containerStyles.listItem('Only staff can close this ticket');
+
+    const controlRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('close_ticket_btn')
+                .setLabel('Close Ticket')
+                .setStyle(ButtonStyle.Danger)
+                .setEmoji('🔒'),
+            new ButtonBuilder()
+                .setCustomId('add_user_btn')
+                .setLabel('Add User')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('👥'),
+            new ButtonBuilder()
+                .setCustomId('transcript_btn')
+                .setLabel('Transcript')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('📄')
+        );
+
+    return createContainer(detailsContent, [controlRow]);
+}
+
+// WELCOME CONTAINER
+function createWelcomeContainer(user) {
+    const content = containerStyles.header('👋 Welcome to Your Ticket!') +
+                   '\n' +
+                   `Hello ${user},\n\n` +
+                   'Thank you for contacting **RurySoft Support**.\n' +
+                   'Our team has been notified and will assist you shortly.\n\n' +
+                   containerStyles.section('What to Expect') +
+                   containerStyles.listItem('Response within 15-30 minutes') +
+                   containerStyles.listItem('24/7 support availability') +
+                   containerStyles.listItem('Private communication only') +
+                   '\n' +
+                   containerStyles.section('How to Help Us') +
+                   containerStyles.listItem('Describe your issue in detail') +
+                   containerStyles.listItem('Include screenshots if possible') +
+                   containerStyles.listItem('Share error messages') +
+                   containerStyles.listItem('List steps to reproduce') +
+                   '\n' +
+                   containerStyles.section('Security Notice') +
+                   containerStyles.bold('NEVER') + ' share passwords or 2FA codes\n' +
+                   containerStyles.bold('NEVER') + ' share product keys publicly\n' +
+                   containerStyles.bold('ALWAYS') + ' verify staff identity\n' +
+                   containerStyles.bold('REPORT') + ' suspicious behavior\n\n' +
+                   containerStyles.italic('We\'re here to help! Please wait patiently.');
+
+    return createContainer(content, []);
+}
+
+// LOG CONTAINER
+function createLogContainer(type, data) {
+    let content = '';
+    
+    switch(type) {
+        case 'created':
+            content = containerStyles.header('📝 Ticket Created') +
+                     containerStyles.divider() +
+                     containerStyles.bold('Ticket ID:') + ` \`${data.ticketId}\`\n` +
+                     containerStyles.bold('User:') + ` ${data.userTag} (\`${data.userId}\`)\n` +
+                     containerStyles.bold('Category:') + ` ${data.category}\n` +
+                     containerStyles.bold('Channel:') + ` ${data.channel}\n` +
+                     containerStyles.bold('Time:') + ` ${containerStyles.timestamp(Date.now())}`;
+            break;
+            
+        case 'closed':
+            content = containerStyles.header('🔒 Ticket Closed') +
+                     containerStyles.divider() +
+                     containerStyles.bold('Ticket ID:') + ` \`${data.ticketId}\`\n` +
+                     containerStyles.bold('User:') + ` <@${data.userId}> (${data.userTag})\n` +
+                     containerStyles.bold('Category:') + ` ${data.category}\n` +
+                     containerStyles.bold('Opened:') + ` ${containerStyles.timestamp(data.createdAt)}\n` +
+                     containerStyles.bold('Duration:') + ` ${data.duration} minutes\n` +
+                     containerStyles.bold('Closed by:') + ` ${data.closedBy}\n` +
+                     containerStyles.bold('Reason:') + ` ${data.reason}\n` +
+                     containerStyles.bold('Messages:') + ` ${data.messageCount}`;
+            break;
+    }
+    
+    return createContainer(content, []);
 }
 
 client.once('ready', async () => {
@@ -62,7 +227,7 @@ client.once('ready', async () => {
     
     client.user.setPresence({
         activities: [{
-            name: 'RurySoft Ticket System',
+            name: 'RurySoft Container System',
             type: ActivityType.Watching
         }],
         status: 'online'
@@ -80,7 +245,7 @@ client.once('ready', async () => {
         const commands = [
             {
                 name: 'ticketpanel',
-                description: 'Send modern ticket panel',
+                description: 'Send ticket panel (container system)',
                 options: [{
                     name: 'channel',
                     description: 'Channel to send panel to',
@@ -89,36 +254,12 @@ client.once('ready', async () => {
                 }]
             },
             {
-                name: 'logchannel',
-                description: 'Set log channel',
-                options: [{
-                    name: 'channel',
-                    description: 'Log channel',
-                    type: 7,
-                    required: true
-                }]
-            },
-            {
-                name: 'resetlogs',
-                description: 'Reset log channel'
-            },
-            {
-                name: 'ticketstats',
-                description: 'Show ticket statistics'
+                name: 'containerstats',
+                description: 'Show ticket container statistics'
             },
             {
                 name: 'staffcheck',
-                description: 'Check staff permissions'
-            },
-            {
-                name: 'closeticket',
-                description: 'Close current ticket',
-                options: [{
-                    name: 'reason',
-                    description: 'Reason for closing',
-                    type: 3,
-                    required: false
-                }]
+                description: 'Check staff container permissions'
             }
         ];
 
@@ -126,7 +267,7 @@ client.once('ready', async () => {
             await guild.commands.create(cmd);
         }
 
-        console.log('✨ Modern ticket commands loaded!');
+        console.log('✨ Container-based commands loaded!');
     } catch (error) {
         console.log('Command loading error:', error.message);
     }
@@ -136,909 +277,506 @@ client.on('interactionCreate', async interaction => {
     try {
         if (interaction.isChatInputCommand()) {
             if (interaction.commandName === 'ticketpanel')
-                return await handleTicketCommand(interaction);
-            if (interaction.commandName === 'logchannel')
-                return await handleLogSetup(interaction);
-            if (interaction.commandName === 'resetlogs')
-                return await handleLogReset(interaction);
-            if (interaction.commandName === 'ticketstats')
-                return await handleTicketStats(interaction);
+                return await handleContainerPanel(interaction);
+            if (interaction.commandName === 'containerstats')
+                return await handleContainerStats(interaction);
             if (interaction.commandName === 'staffcheck')
-                return await handleStaffCheck(interaction);
-            if (interaction.commandName === 'closeticket')
-                return await handleCloseCommand(interaction);
+                return await handleContainerStaffCheck(interaction);
         }
 
         if (interaction.isStringSelectMenu()) {
-            if (interaction.customId === 'ticket_category')
-                return await handleCategorySelection(interaction);
+            if (interaction.customId === 'ticket_category_select')
+                return await handleContainerCategorySelect(interaction);
         }
 
-        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_'))
-            return await handleModalSubmit(interaction);
+        if (interaction.isModalSubmit()) {
+            if (interaction.customId.startsWith('ticket_form_'))
+                return await handleContainerFormSubmit(interaction);
+        }
 
         if (interaction.isButton()) {
-            if (interaction.customId === 'create_ticket') return await handleCreateTicketButton(interaction);
-            if (interaction.customId === 'close_ticket') return await handleTicketClose(interaction);
-            if (interaction.customId === 'confirm_close') return await handleTicketCloseConfirm(interaction);
-            if (interaction.customId === 'cancel_close') return await handleTicketCloseCancel(interaction);
-            if (interaction.customId === 'ticket_info') return await handleTicketInfo(interaction);
-            if (interaction.customId === 'add_user') return await handleAddUserModal(interaction);
+            if (interaction.customId === 'create_ticket_btn')
+                return await handleContainerCreateButton(interaction);
+            if (interaction.customId === 'ticket_info_btn')
+                return await handleContainerInfoButton(interaction);
+            if (interaction.customId === 'close_ticket_btn')
+                return await handleContainerCloseButton(interaction);
+            if (interaction.customId === 'confirm_close_btn')
+                return await handleContainerCloseConfirm(interaction);
+            if (interaction.customId === 'cancel_close_btn')
+                return await handleContainerCloseCancel(interaction);
+            if (interaction.customId === 'add_user_btn')
+                return await handleContainerAddUser(interaction);
+            if (interaction.customId === 'transcript_btn')
+                return await handleContainerTranscript(interaction);
         }
     } catch (error) {
-        console.error('Interaction error:', error);
+        console.error('Container interaction error:', error);
         if (interaction.isRepliable()) {
             await interaction.reply({
-                content: '❌ An error occurred!',
+                content: '❌ Container error occurred!',
                 flags: MessageFlags.Ephemeral
-            }).catch(() => {});
+            });
         }
     }
 });
 
-async function handleStaffCheck(interaction) {
-    const isStaff = hasSupportPermission(interaction.member);
-    const isOwner = interaction.user.id === config.ownerId;
-    
-    const content = `## 🔧 Staff Permission Check\n` +
-                   `\n` +
-                   `**👤 User Information**\n` +
-                   `• **Name:** ${interaction.user.tag}\n` +
-                   `• **ID:** \`${interaction.user.id}\`\n` +
-                   `• **Server Owner:** ${isOwner ? '✅ Yes' : '❌ No'}\n` +
-                   `• **Staff Permission:** ${isStaff ? '✅ Yes' : '❌ No'}\n\n` +
-                   `**🎭 Required Roles**\n` +
-                   `${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId.map(r => `• <@&${r}>`).join('\n') : '• Not configured'}\n\n` +
-                   `**📅 Checked At:** <t:${Math.floor(Date.now() / 1000)}:T>`;
-    
-    await interaction.reply({ 
-        content: content,
-        flags: MessageFlags.Ephemeral 
-    });
-}
-
-async function handleLogSetup(interaction) {
+async function handleContainerPanel(interaction) {
     if (interaction.user.id !== config.ownerId) {
         return await interaction.reply({
-            content: '❌ Only the server owner can use this command!',
+            content: '❌ Only owner can send container panel!',
             flags: MessageFlags.Ephemeral
         });
     }
 
-    const channel = interaction.options.getChannel('channel');
-    
-    config.logChannelId = channel.id;
-    fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
-    
-    await interaction.reply({ 
-        content: `## ✅ Log Channel Configured\n\n` +
-                `**📝 Channel Set:** ${channel}\n` +
-                `**🔧 Action:** All ticket logs will be sent here\n` +
-                `**👤 Configured by:** ${interaction.user}\n` +
-                `**🕒 Time:** <t:${Math.floor(Date.now() / 1000)}:T>`,
-        flags: MessageFlags.Ephemeral 
-    });
-}
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-async function handleLogReset(interaction) {
-    if (interaction.user.id !== config.ownerId) {
-        return await interaction.reply({
-            content: '❌ Only the server owner can use this command!',
-            flags: MessageFlags.Ephemeral
+    const targetChannel = interaction.options.getChannel('channel');
+    
+    if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
+        return await interaction.editReply({
+            content: '❌ Select a valid text channel!'
         });
     }
 
-    config.logChannelId = "";
-    fs.writeFileSync('./config.json', JSON.stringify(config, null, 2));
+    const panelContainer = createPanelContainer();
     
-    await interaction.reply({ 
-        content: `## 🔄 Log Channel Reset\n\n` +
-                `**📝 Action:** Ticket logging has been disabled\n` +
-                `**⚠️ Note:** No more logs will be recorded\n` +
-                `**👤 Reset by:** ${interaction.user}\n` +
-                `**🕒 Time:** <t:${Math.floor(Date.now() / 1000)}:T>`,
-        flags: MessageFlags.Ephemeral 
+    await targetChannel.send(panelContainer);
+
+    await interaction.editReply({
+        content: `✅ Container panel sent to ${targetChannel}`
     });
 }
 
-async function handleTicketStats(interaction) {
+async function handleContainerStats(interaction) {
     const openTickets = Object.values(ticketData).filter(t => t.status === 'open').length;
     const closedTickets = Object.values(ticketData).filter(t => t.status === 'closed').length;
-    const totalTickets = Object.keys(ticketData).length;
     
-    const content = `## 📊 Ticket Statistics\n\n` +
-                   `**📈 Open Tickets:** \`${openTickets}\`\n` +
-                   `**📉 Closed Tickets:** \`${closedTickets}\`\n` +
-                   `**📊 Total Tickets:** \`${totalTickets}\`\n` +
-                   `**🔄 Active Sessions:** \`${Object.values(ticketData).filter(t => t.status === 'open').length}\`\n\n` +
-                   `**📅 Last Updated:** <t:${Math.floor(Date.now() / 1000)}:R>\n` +
-                   `**🤖 System Status:** 🟢 Operational`;
-    
-    await interaction.reply({ 
+    const content = containerStyles.header('📊 Container Statistics') +
+                   containerStyles.divider() +
+                   containerStyles.bold('Open Tickets:') + ` \`${openTickets}\`\n` +
+                   containerStyles.bold('Closed Tickets:') + ` \`${closedTickets}\`\n` +
+                   containerStyles.bold('Total Tickets:') + ` \`${Object.keys(ticketData).length}\`\n` +
+                   containerStyles.bold('Active Sessions:') + ` \`${openTickets}\`\n\n` +
+                   containerStyles.bold('System Status:') + ' 🟢 Operational\n' +
+                   containerStyles.bold('Last Updated:') + ` ${containerStyles.timestamp(Date.now())}`;
+
+    await interaction.reply({
         content: content,
-        flags: MessageFlags.Ephemeral 
+        flags: MessageFlags.Ephemeral
     });
 }
 
-async function handleCloseCommand(interaction) {
-    const channel = interaction.channel;
-    const ticket = ticketData[channel.id];
+async function handleContainerStaffCheck(interaction) {
+    const isStaff = config.ticketRoleId && config.ticketRoleId.some(roleId => 
+        interaction.member.roles.cache.has(roleId)
+    );
     
-    if (!ticket) {
-        return await interaction.reply({
-            content: '❌ This channel is not a ticket!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    const member = interaction.member;
-    const isSupportStaff = hasSupportPermission(member);
-    const isServerOwner = interaction.user.id === config.ownerId;
-    
-    if (!isSupportStaff && !isServerOwner) {
-        return await interaction.reply({
-            content: '❌ Only staff members can close tickets!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-    
-    const reason = interaction.options.getString('reason') || 'No reason provided';
-    
-    await handleTicketCloseConfirm(interaction, reason);
+    const content = containerStyles.header('🔧 Staff Container Check') +
+                   containerStyles.divider() +
+                   containerStyles.bold('User:') + ` ${interaction.user.tag}\n` +
+                   containerStyles.bold('User ID:') + ` \`${interaction.user.id}\`\n` +
+                   containerStyles.bold('Staff Permission:') + ` ${isStaff ? '✅ Yes' : '❌ No'}\n` +
+                   containerStyles.bold('Server Owner:') + ` ${interaction.user.id === config.ownerId ? '✅ Yes' : '❌ No'}\n\n` +
+                   containerStyles.bold('Required Roles:') + '\n' +
+                   (config.ticketRoleId && config.ticketRoleId.length > 0 ? 
+                    config.ticketRoleId.map(r => `• <@&${r}>`).join('\n') : 
+                    '• Not configured') +
+                   '\n\n' +
+                   containerStyles.bold('Checked At:') + ` ${containerStyles.timestamp(Date.now())}`;
+
+    await interaction.reply({
+        content: content,
+        flags: MessageFlags.Ephemeral
+    });
 }
 
-async function handleTicketCommand(interaction) {
-    try {
-        if (interaction.user.id !== config.ownerId) {
-            return await interaction.reply({
-                content: '❌ Only the server owner can use this command!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
-        const targetChannel = interaction.options.getChannel('channel');
-
-        if (!targetChannel || targetChannel.type !== ChannelType.GuildText) {
-            return await interaction.editReply({
-                content: '❌ Please select a valid text channel!'
-            });
-        }
-
-        // MODERN TICKET PANEL - NO EMBEDS
-        const panelContent = `# 🎫 RurySoft | Ticket System\n` +
-                           `\n` +
-                           `## 📋 Get Support & Assistance\n` +
-                           `Create a ticket to get help from our dedicated support team.\n` +
-                           `Our system ensures private, secure, and efficient communication.\n` +
-                           `\n` +
-                           `### 🔒 Key Features\n` +
-                           `• **Private Channels** - Only you and our staff can see\n` +
-                           `• **Fast Response** - 24/7 support availability\n` +
-                           `• **Secure Communication** - End-to-end privacy\n` +
-                           `• **Professional Staff** - Trained support team\n` +
-                           `\n` +
-                           `### ⚠️ Important Guidelines\n` +
-                           `• Provide detailed information\n` +
-                           `• Be respectful to staff members\n` +
-                           `• No spam or duplicate tickets\n` +
-                           `• False information will lead to ban\n` +
-                           `\n` +
-                           `### 📊 System Information\n` +
-                           `**Status:** 🟢 Online | **Queue:** 0 | **Avg. Response:** < 15min\n` +
-                           `**Last Updated:** <t:${Math.floor(Date.now() / 1000)}:T>`;
-
-        // MAIN ACTION BUTTONS
-        const mainButtons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('create_ticket')
-                    .setLabel('🎫 Create Ticket')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🎫'),
-                new ButtonBuilder()
-                    .setCustomId('ticket_info')
-                    .setLabel('ℹ️ Information')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('ℹ️')
-            );
-
-        // CATEGORY SELECTION MENU
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('ticket_category')
-            .setPlaceholder('📂 Select Ticket Category')
-            .setMaxValues(1)
-            .addOptions(
-                Object.entries(config.categories).map(([key, c]) => ({
-                    label: c.name,
-                    description: c.description.substring(0, 100),
-                    value: key,
-                    emoji: c.emoji
-                }))
-            );
-
-        const selectRow = new ActionRowBuilder().addComponents(selectMenu);
-
-        // STATUS BAR
-        const statusRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('status')
-                    .setLabel('🟢 System Online')
-                    .setStyle(ButtonStyle.Success)
-                    .setDisabled(true),
-                new ButtonBuilder()
-                    .setCustomId('stats')
-                    .setLabel(`📊 Tickets: ${Object.keys(ticketData).filter(k => ticketData[k].status === 'open').length}`)
-                    .setStyle(ButtonStyle.Secondary)
-                    .setDisabled(true)
-            );
-
-        await targetChannel.send({
-            content: panelContent,
-            components: [mainButtons, selectRow, statusRow]
-        });
-
-        await interaction.editReply({
-            content: `✅ Modern ticket panel has been sent to ${targetChannel}`
-        });
-
-    } catch (error) {
-        console.error('Error in handleTicketCommand:', error);
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply({
-                content: `❌ Error: ${error.message}`
-            });
-        } else {
-            await interaction.reply({
-                content: `❌ Error: ${error.message}`,
-                flags: MessageFlags.Ephemeral
-            });
-        }
-    }
-}
-
-async function handleCreateTicketButton(interaction) {
+async function handleContainerCreateButton(interaction) {
     const active = Object.values(ticketData)
         .find(t => t.userId === interaction.user.id && t.status === 'open');
 
     if (active) {
         return await interaction.reply({
-            content: `❌ You already have an active ticket!\n\n` +
-                    `**Ticket Details:**\n` +
-                    `• **ID:** \`${active.id}\`\n` +
-                    `• **Channel:** <#${active.channelId}>\n` +
-                    `• **Created:** <t:${Math.floor(active.createdAt / 1000)}:R>\n\n` +
-                    `Please close your existing ticket before creating a new one.`,
+            content: containerStyles.header('⚠️ Active Ticket Found') +
+                   '\nYou already have an active ticket!\n\n' +
+                   containerStyles.bold('Ticket ID:') + ` \`${active.id}\`\n` +
+                   containerStyles.bold('Channel:') + ` <#${active.channelId}>\n` +
+                   containerStyles.bold('Created:') + ` ${containerStyles.timestamp(active.createdAt)}\n\n` +
+                   'Please close your existing ticket first.',
             flags: MessageFlags.Ephemeral
         });
     }
 
     await interaction.reply({
-        content: `🎫 **Select a category from the dropdown menu above**\n\n` +
-                `Choose the category that best fits your request:\n` +
-                `• **Support** - Technical issues & help\n` +
-                `• **Payment** - Billing & purchases\n` +
-                `• **Reseller** - Partnership inquiries\n` +
-                `• **Media** - Collaboration requests\n` +
-                `• **HWID** - Hardware ID resets\n\n` +
-                `*After selection, a form will appear to provide details.*`,
+        content: containerStyles.header('🎫 Select Category') +
+               '\nPlease select a category from the dropdown menu above.\n\n' +
+               containerStyles.bold('Available Categories:') + '\n' +
+               '• 🔧 Technical Support\n' +
+               '• 💳 Payment & Billing\n' +
+               '• 🤝 Reseller Program\n' +
+               '• 🎬 Media & Collaboration\n' +
+               '• 🔄 HWID Reset\n\n' +
+               'After selection, a form will appear.',
         flags: MessageFlags.Ephemeral
     });
 }
 
-async function handleTicketInfo(interaction) {
+async function handleContainerInfoButton(interaction) {
+    const content = containerStyles.header('ℹ️ Container System Info') +
+                   containerStyles.divider() +
+                   containerStyles.section('How It Works') +
+                   '1. Click "Create Ticket" button\n' +
+                   '2. Select category from dropdown\n' +
+                   '3. Fill out the form with details\n' +
+                   '4. Private container channel created\n' +
+                   '5. Staff team notified automatically\n\n' +
+                   containerStyles.section('Container Features') +
+                   containerStyles.listItem('Private communication') +
+                   containerStyles.listItem('Secure container system') +
+                   containerStyles.listItem('Fast staff response') +
+                   containerStyles.listItem('Transcript generation') +
+                   '\n' +
+                   containerStyles.section('Rules') +
+                   containerStyles.listItem('One container per issue') +
+                   containerStyles.listItem('No sensitive data sharing') +
+                   containerStyles.listItem('Respect staff members') +
+                   containerStyles.listItem('Provide detailed information') +
+                   '\n' +
+                   containerStyles.bold('Need help?') + ' Contact server staff.';
+
     await interaction.reply({
-        content: `## ℹ️ Ticket System Information\n\n` +
-                `### How to Create a Ticket\n` +
-                `1. Click "Create Ticket" button\n` +
-                `2. Select a category from dropdown\n` +
-                `3. Fill out the form with details\n` +
-                `4. Submit and wait for staff\n\n` +
-                `### What Happens Next\n` +
-                `• Private channel created for you\n` +
-                `• Support team notified automatically\n` +
-                `• You can communicate privately\n` +
-                `• Only staff can close the ticket\n\n` +
-                `### Rules & Guidelines\n` +
-                `• Be patient and respectful\n` +
-                `• Provide detailed information\n` +
-                `• No sharing of sensitive data\n` +
-                `• One ticket per issue\n\n` +
-                `### Staff Commands\n` +
-                `\`/closeticket [reason]\` - Close ticket\n` +
-                `\`/ticketstats\` - View statistics\n` +
-                `\`/staffcheck\` - Check permissions\n\n` +
-                `**Need more help?** Contact server administration.`,
+        content: content,
         flags: MessageFlags.Ephemeral
     });
 }
 
-async function handleCategorySelection(interaction) {
-    try {
-        const selectedCategory = interaction.values[0];
-        const category = config.categories[selectedCategory];
+async function handleContainerCategorySelect(interaction) {
+    const selectedCategory = interaction.values[0];
+    
+    const categoryConfig = {
+        support: { name: 'Technical Support', emoji: '🔧', questions: [
+            { label: 'Username', placeholder: 'Your RurySoft username' },
+            { label: 'Product/Service', placeholder: 'What product/service needs help?' },
+            { label: 'Issue Description', placeholder: 'Describe your issue in detail...', style: TextInputStyle.Paragraph }
+        ]},
+        payment: { name: 'Payment & Billing', emoji: '💳', questions: [
+            { label: 'Username', placeholder: 'Your RurySoft website username' },
+            { label: 'Product Name', placeholder: 'Which product do you want?' },
+            { label: 'Payment Method', placeholder: 'Credit Card / Crypto / PayPal' }
+        ]},
+        reseller: { name: 'Reseller Program', emoji: '🤝', questions: [
+            { label: 'Username', placeholder: 'Your RurySoft username' },
+            { label: 'Business Name', placeholder: 'Your business/brand name' },
+            { label: 'Monthly Sales Estimate', placeholder: 'Estimated sales volume' },
+            { label: 'Experience', placeholder: 'Your reseller experience...', style: TextInputStyle.Paragraph }
+        ]},
+        media: { name: 'Media & Collaboration', emoji: '🎬', questions: [
+            { label: 'Social Media', placeholder: 'TikTok/YouTube/Instagram link' },
+            { label: 'Username', placeholder: 'Your RurySoft username' },
+            { label: 'Video URL', placeholder: 'Video URL (if applicable)' },
+            { label: 'Proposal', placeholder: 'Collaboration proposal...', style: TextInputStyle.Paragraph }
+        ]},
+        hwid: { name: 'HWID Reset', emoji: '🔄', questions: [
+            { label: 'Username', placeholder: 'Your RurySoft username' },
+            { label: 'Product Key', placeholder: 'Enter your product key' },
+            { label: 'Reset Reason', placeholder: 'Why reset needed?', style: TextInputStyle.Paragraph }
+        ]}
+    };
 
-        const active = Object.values(ticketData)
-            .find(t => t.userId === interaction.user.id && t.status === 'open');
+    const category = categoryConfig[selectedCategory];
+    
+    const modal = new ModalBuilder()
+        .setCustomId(`ticket_form_${selectedCategory}`)
+        .setTitle(`${category.emoji} ${category.name} Form`);
 
-        if (active) {
-            return await interaction.reply({
-                content: '❌ You already have an active ticket!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        const modal = new ModalBuilder()
-            .setCustomId(`ticket_modal_${selectedCategory}`)
-            .setTitle(`${category.emoji} ${category.name} Ticket`);
-
-        let questions = [];
+    category.questions.forEach((q, index) => {
+        const textInput = new TextInputBuilder()
+            .setCustomId(`q_${index}`)
+            .setLabel(q.label)
+            .setPlaceholder(q.placeholder)
+            .setRequired(true)
+            .setStyle(q.style || TextInputStyle.Short)
+            .setMaxLength(q.style === TextInputStyle.Paragraph ? 1000 : 100);
         
-        switch (selectedCategory) {
-            case 'payment':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RurySoft website username', required: true },
-                    { label: 'Product Name', placeholder: 'Which product do you want to purchase?', required: true },
-                    { label: 'Payment Method', placeholder: 'Credit Card / Crypto / PayPal etc.', required: true }
-                ];
-                break;
+        modal.addComponents(new ActionRowBuilder().addComponents(textInput));
+    });
 
-            case 'support':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RurySoft username', required: true },
-                    { label: 'Product/Service', placeholder: 'Product or service needing help', required: true },
-                    { label: 'Issue Description', placeholder: 'Describe your issue in detail...', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
-            case 'reseller':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RurySoft username', required: true },
-                    { label: 'Business Name', placeholder: 'Your business/brand name', required: true },
-                    { label: 'Monthly Sales Estimate', placeholder: 'Estimated sales volume', required: true },
-                    { label: 'Previous Experience', placeholder: 'Your reseller experience...', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
-            case 'media':
-                questions = [
-                    { label: 'Social Media Profile', placeholder: 'TikTok/YouTube/Instagram link', required: true },
-                    { label: 'Username', placeholder: 'Your RurySoft username', required: true },
-                    { label: 'Video URL', placeholder: 'Video URL (Required)', required: true },
-                    { label: 'Collaboration Proposal', placeholder: 'What kind of collaboration?', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-
-            case 'hwid':
-                questions = [
-                    { label: 'Username', placeholder: 'Your RurySoft username', required: true },
-                    { label: 'Product Key', placeholder: 'Enter your product key', required: true },
-                    { label: 'HWID Reset Reason', placeholder: 'Why do you need HWID reset?', required: true, style: TextInputStyle.Paragraph }
-                ];
-                break;
-        }
-
-        questions.forEach((q, index) => {
-            const textInput = new TextInputBuilder()
-                .setCustomId(`question_${index}`)
-                .setLabel(q.label)
-                .setPlaceholder(q.placeholder)
-                .setRequired(q.required)
-                .setStyle(q.style || TextInputStyle.Short)
-                .setMaxLength(q.style === TextInputStyle.Paragraph ? 1000 : 100);
-            
-            const actionRow = new ActionRowBuilder().addComponents(textInput);
-            modal.addComponents(actionRow);
-        });
-
-        await interaction.showModal(modal);
-    } catch (error) {
-        console.error('Error in handleCategorySelection:', error);
-        await interaction.reply({
-            content: '❌ Error opening ticket form!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
+    await interaction.showModal(modal);
 }
 
-async function handleModalSubmit(interaction) {
-    try {
-        const categoryKey = interaction.customId.split('_')[2];
-        const category = config.categories[categoryKey];
-        const guild = interaction.guild;
-        const user = interaction.user;
+async function handleContainerFormSubmit(interaction) {
+    const categoryKey = interaction.customId.split('_')[2];
+    const user = interaction.user;
+    const guild = interaction.guild;
 
-        await interaction.reply({
-            content: '🔄 Creating your ticket...',
-            flags: MessageFlags.Ephemeral
-        });
+    await interaction.reply({
+        content: '🔄 Creating container channel...',
+        flags: MessageFlags.Ephemeral
+    });
 
-        const ticketId = `TICKET-${Date.now().toString().slice(-8)}`;
-        const safeName = user.username.replace(/[^a-zA-Z0-9-_]/g, '').substring(0, 15);
-        const channelName = `🎫-${safeName}-${ticketId.slice(-4)}`;
+    const ticketId = `CT-${Date.now().toString().slice(-6)}`;
+    const safeName = user.username.replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+    const channelName = `ticket-${safeName}-${ticketId.slice(-3)}`;
 
-        const channel = await guild.channels.create({
-            name: channelName,
-            type: ChannelType.GuildText,
-            parent: config.ticketCategoryId || null,
-            topic: `Ticket ID: ${ticketId} | User: ${user.tag} | Category: ${category.name}`,
-            reason: `Ticket created by ${user.tag}`,
-            permissionOverwrites: [
-                {
-                    id: guild.id,
-                    deny: [PermissionFlagsBits.ViewChannel]
-                },
-                {
-                    id: user.id,
-                    allow: [
-                        PermissionFlagsBits.ViewChannel,
-                        PermissionFlagsBits.SendMessages,
-                        PermissionFlagsBits.ReadMessageHistory,
-                        PermissionFlagsBits.AttachFiles,
-                        PermissionFlagsBits.EmbedLinks
-                    ]
-                },
-                {
-                    id: client.user.id,
-                    allow: [
-                        PermissionFlagsBits.ViewChannel,
-                        PermissionFlagsBits.SendMessages,
-                        PermissionFlagsBits.ReadMessageHistory,
-                        PermissionFlagsBits.ManageMessages,
-                        PermissionFlagsBits.ManageChannels,
-                        PermissionFlagsBits.AttachFiles,
-                        PermissionFlagsBits.EmbedLinks
-                    ]
-                }
-            ]
-        });
+    const channel = await guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: config.ticketCategoryId,
+        permissionOverwrites: [
+            { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+            { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+            { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
+        ]
+    });
 
-        // Add staff permissions
-        if (config.ticketRoleId && Array.isArray(config.ticketRoleId)) {
-            for (const roleId of config.ticketRoleId) {
-                try {
-                    await channel.permissionOverwrites.edit(roleId, {
-                        ViewChannel: true,
-                        SendMessages: true,
-                        ReadMessageHistory: true,
-                        ManageMessages: true,
-                        AttachFiles: true,
-                        EmbedLinks: true
-                    });
-                } catch (roleError) {
-                    console.log(`Role ${roleId} error:`, roleError.message);
-                }
-            }
-        }
-
-        // Collect answers
-        let questions = [];
-        switch (categoryKey) {
-            case 'payment': questions = ['Username', 'Product', 'Payment Method']; break;
-            case 'support': questions = ['Username', 'Related Product/Service', 'Issue Description']; break;
-            case 'reseller': questions = ['Username', 'Business Name', 'Monthly Sales Estimate', 'Previous Experience']; break;
-            case 'media': questions = ['Social Media Profile', 'Username', 'Video URL', 'Collaboration Proposal']; break;
-            case 'hwid': questions = ['Username', 'Product Key', 'HWID Reset Reason']; break;
-        }
-
-        let answerText = '';
-        let answers = [];
-        for (let i = 0; i < questions.length; i++) {
-            const answer = interaction.fields.getTextInputValue(`question_${i}`);
-            if (answer && answer.trim()) {
-                answerText += `**${questions[i]}:**\n\`\`\`${answer.substring(0, 300)}\`\`\`\n`;
-                answers.push({ question: questions[i], answer: answer });
-            }
-        }
-
-        // Save ticket data
-        ticketData[channel.id] = {
-            id: ticketId,
-            userId: user.id,
-            username: user.username,
-            userTag: user.tag,
-            category: categoryKey,
-            createdAt: Date.now(),
-            status: 'open',
-            channelId: channel.id,
-            answers: answers
-        };
-
-        // WELCOME MESSAGE - NO EMBEDS
-        const welcomeContent = `# 🎫 ${category.emoji} ${category.name} Ticket\n` +
-                              `\n` +
-                              `## 📋 Ticket Information\n` +
-                              `**Ticket ID:** \`${ticketId}\`\n` +
-                              `**User:** ${user} (\`${user.tag}\`)\n` +
-                              `**Category:** ${category.name}\n` +
-                              `**Created:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-                              `**Status:** 🟢 Open - Awaiting staff\n` +
-                              `\n` +
-                              `## 📝 Provided Details\n` +
-                              `${answerText}\n` +
-                              `## 👥 Assigned Staff Team\n` +
-                              `${config.ticketRoleId && config.ticketRoleId.length > 0 ? config.ticketRoleId.map(r => `<@&${r}>`).join(' ') : 'Awaiting staff assignment...'}\n` +
-                              `\n` +
-                              `## 📌 Instructions\n` +
-                              `• Please provide additional details if needed\n` +
-                              `• Be patient while waiting for staff response\n` +
-                              `• Do not share sensitive information publicly\n` +
-                              `• Only staff can close this ticket\n` +
-                              `\n` +
-                              `*Thank you for contacting RurySoft Support!*`;
-
-        // CONTROL BUTTONS
-        const controlButtons = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('close_ticket')
-                    .setLabel('🔒 Close Ticket')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('🔒'),
-                new ButtonBuilder()
-                    .setCustomId('add_user')
-                    .setLabel('👥 Add User')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('👥')
-            );
-
-        // Send ticket message
-        await channel.send({ 
-            content: welcomeContent,
-            components: [controlButtons]
-        });
-
-        // Additional welcome message
-        const additionalContent = `# 👋 Welcome to Your Support Ticket!\n` +
-                                `\n` +
-                                `Hello ${user},\n` +
-                                `Thank you for contacting **RurySoft Support**.\n` +
-                                `Our dedicated team has been notified and will assist you shortly.\n` +
-                                `\n` +
-                                `### 📋 What to Expect\n` +
-                                `• **Response Time:** Usually within 15-30 minutes\n` +
-                                `• **Support Hours:** 24/7 availability\n` +
-                                `• **Communication:** Keep all conversation here\n` +
-                                `\n` +
-                                `### 📝 How to Help Us Help You\n` +
-                                `• Provide detailed description of your issue\n` +
-                                `• Include screenshots if applicable\n` +
-                                `• Share error messages if any\n` +
-                                `• List steps to reproduce the problem\n` +
-                                `\n` +
-                                `### ⚠️ Important Security Notice\n` +
-                                `• **Never share** your password or 2FA codes\n` +
-                                `• **Never share** product keys publicly\n` +
-                                `• **Verify staff** through official channels\n` +
-                                `• **Report** suspicious behavior immediately\n` +
-                                `\n` +
-                                `*We're here to help! Please wait patiently.*`;
-        
-        await channel.send({ content: additionalContent });
-
-        await interaction.editReply({
-            content: `✅ **Ticket Created Successfully!**\n\n` +
-                    `**Channel:** ${channel}\n` +
-                    `**Ticket ID:** \`${ticketId}\`\n` +
-                    `**Category:** ${category.name}\n` +
-                    `**Created:** <t:${Math.floor(Date.now() / 1000)}:R>\n\n` +
-                    `Our support team has been notified and will assist you shortly.`
-        });
-
-        // Send to log channel
-        if (config.logChannelId && config.logChannelId !== "") {
+    // Add staff roles
+    if (config.ticketRoleId) {
+        for (const roleId of config.ticketRoleId) {
             try {
-                const logChannel = guild.channels.cache.get(config.logChannelId);
-                if (logChannel) {
-                    const logContent = `## 🎫 New Ticket Created\n` +
-                                     `\n` +
-                                     `**Ticket ID:** \`${ticketId}\`\n` +
-                                     `**User:** ${user.tag} (\`${user.id}\`)\n` +
-                                     `**Category:** ${category.name}\n` +
-                                     `**Channel:** ${channel}\n` +
-                                     `**Time:** <t:${Math.floor(Date.now() / 1000)}:T>\n` +
-                                     `\n` +
-                                     `### 📝 Quick Details\n` +
-                                     `**Username:** ${interaction.fields.getTextInputValue('question_0') || 'Not provided'}\n` +
-                                     `**Issue Type:** ${categoryKey}\n` +
-                                     `**Created:** Just now\n` +
-                                     `\n` +
-                                     `*Ticket has been assigned to support team.*`;
-                    
-                    await logChannel.send({ content: logContent });
-                }
-            } catch (logError) {
-                console.log('Log error:', logError.message);
+                await channel.permissionOverwrites.edit(roleId, {
+                    ViewChannel: true,
+                    SendMessages: true,
+                    ReadMessageHistory: true
+                });
+            } catch (error) {
+                console.log(`Role ${roleId} error:`, error.message);
             }
         }
+    }
 
-    } catch (error) {
-        console.error('Fatal error in handleModalSubmit:', error);
-        
-        let errorMsg = '❌ **Error creating ticket!**\n' +
-                      'Please try again or contact server administration.';
-        
-        if (error.code === 50013) {
-            errorMsg = '❌ **Bot Permission Error**\n' +
-                      'The bot lacks "Manage Channels" permission.\n' +
-                      'Please grant the necessary permissions and try again.';
+    // Collect answers
+    const categoryConfig = {
+        support: { name: 'Technical Support', emoji: '🔧' },
+        payment: { name: 'Payment & Billing', emoji: '💳' },
+        reseller: { name: 'Reseller Program', emoji: '🤝' },
+        media: { name: 'Media & Collaboration', emoji: '🎬' },
+        hwid: { name: 'HWID Reset', emoji: '🔄' }
+    };
+
+    const category = categoryConfig[categoryKey];
+    const answers = [];
+    
+    for (let i = 0; i < 4; i++) {
+        const answer = interaction.fields.getTextInputValue(`q_${i}`);
+        if (answer) {
+            answers.push({ question: `Question ${i + 1}`, answer: answer });
         }
-        
-        if (interaction.replied || interaction.deferred) {
-            await interaction.editReply({ content: errorMsg });
-        } else {
-            await interaction.reply({ 
-                content: errorMsg,
-                flags: MessageFlags.Ephemeral 
-            });
+    }
+
+    // Save ticket data
+    ticketData[channel.id] = {
+        id: ticketId,
+        userId: user.id,
+        userTag: user.tag,
+        category: categoryKey,
+        createdAt: Date.now(),
+        status: 'open',
+        channelId: channel.id,
+        answers: answers
+    };
+
+    // Send container messages
+    const ticketContainer = createTicketContainer(ticketId, user, category, answers);
+    const welcomeContainer = createWelcomeContainer(user);
+    
+    await channel.send(ticketContainer);
+    await channel.send(welcomeContainer);
+
+    await interaction.editReply({
+        content: `✅ Container created: ${channel}\nTicket ID: \`${ticketId}\``
+    });
+
+    // Log
+    if (config.logChannelId) {
+        try {
+            const logChannel = guild.channels.cache.get(config.logChannelId);
+            if (logChannel) {
+                const logContainer = createLogContainer('created', {
+                    ticketId: ticketId,
+                    userTag: user.tag,
+                    userId: user.id,
+                    category: category.name,
+                    channel: channel.toString()
+                });
+                
+                await logChannel.send(logContainer);
+            }
+        } catch (error) {
+            console.log('Log error:', error.message);
         }
     }
 }
 
-async function handleAddUserModal(interaction) {
+async function handleContainerCloseButton(interaction) {
+    const channel = interaction.channel;
+    const ticket = ticketData[channel.id];
+
+    if (!ticket) {
+        return await interaction.reply({
+            content: '❌ Not a container channel!',
+            flags: MessageFlags.Ephemeral
+        });
+    }
+
+    const isStaff = config.ticketRoleId && config.ticketRoleId.some(roleId => 
+        interaction.member.roles.cache.has(roleId)
+    );
+
+    if (!isStaff && interaction.user.id !== config.ownerId) {
+        return await interaction.reply({
+            content: '❌ Only staff can close containers!',
+            flags: MessageFlags.Ephemeral
+        });
+    }
+
+    const content = containerStyles.header('🔒 Confirm Container Closure') +
+                   containerStyles.divider() +
+                   containerStyles.bold('Container ID:') + ` \`${ticket.id}\`\n` +
+                   containerStyles.bold('User:') + ` <@${ticket.userId}>\n` +
+                   containerStyles.bold('Created:') + ` ${containerStyles.timestamp(ticket.createdAt)}\n` +
+                   containerStyles.bold('Staff:') + ` ${interaction.user.tag}\n\n` +
+                   containerStyles.bold('⚠️ Warning:') + '\n' +
+                   'This action cannot be undone!\n' +
+                   'Container will be permanently deleted.\n' +
+                   'Transcript will be generated.\n\n' +
+                   containerStyles.bold('Confirm closure?');
+
+    const confirmRow = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('confirm_close_btn')
+                .setLabel('✅ Confirm Close')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('cancel_close_btn')
+                .setLabel('❌ Cancel')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+    await interaction.reply({
+        content: content,
+        components: [confirmRow],
+        flags: MessageFlags.Ephemeral
+    });
+}
+
+async function handleContainerCloseConfirm(interaction) {
+    const channel = interaction.channel;
+    const ticket = ticketData[channel.id];
+
+    if (!ticket) return;
+
+    await interaction.update({
+        content: '🔄 Closing container...',
+        components: []
+    });
+
+    // Generate transcript
+    const messages = await channel.messages.fetch({ limit: 100 });
+    let transcript = `CONTAINER TRANSCRIPT - ${ticket.id}\n`;
+    transcript += `User: ${ticket.userTag} (${ticket.userId})\n`;
+    transcript += `Created: ${new Date(ticket.createdAt).toLocaleString()}\n`;
+    transcript += `Closed: ${new Date().toLocaleString()}\n`;
+    transcript += `Closed by: ${interaction.user.tag}\n\n`;
+    transcript += `MESSAGES:\n${'='.repeat(50)}\n\n`;
+    
+    messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp)
+        .forEach(msg => {
+            transcript += `[${msg.createdAt.toLocaleString()}] ${msg.author.tag}: ${msg.content || '[Attachment]'}\n`;
+        });
+
+    const transcriptBuffer = Buffer.from(transcript, 'utf-8');
+    const attachment = new AttachmentBuilder(transcriptBuffer, {
+        name: `container-${ticket.id}-transcript.txt`
+    });
+
+    const duration = Math.floor((Date.now() - ticket.createdAt) / 60000);
+
+    // Final message
+    const closeContent = containerStyles.header('🔒 Container Closed') +
+                        containerStyles.divider() +
+                        containerStyles.bold('Container ID:') + ` \`${ticket.id}\`\n` +
+                        containerStyles.bold('Duration:') + ` ${duration} minutes\n` +
+                        containerStyles.bold('Messages:') + ` ${messages.size}\n` +
+                        containerStyles.bold('Closed by:') + ` ${interaction.user.tag}\n` +
+                        containerStyles.bold('Transcript:') + ' ✅ Generated\n\n' +
+                        containerStyles.italic('Container will be deleted in 10 seconds...');
+
+    await channel.send({
+        content: closeContent,
+        files: [attachment]
+    });
+
+    // Log
+    if (config.logChannelId) {
+        try {
+            const logChannel = channel.guild.channels.cache.get(config.logChannelId);
+            if (logChannel) {
+                const logContainer = createLogContainer('closed', {
+                    ticketId: ticket.id,
+                    userId: ticket.userId,
+                    userTag: ticket.userTag,
+                    category: ticket.category,
+                    createdAt: ticket.createdAt,
+                    duration: duration,
+                    closedBy: interaction.user.tag,
+                    reason: 'Staff closed',
+                    messageCount: messages.size
+                });
+                
+                await logChannel.send({
+                    ...logContainer,
+                    files: [attachment]
+                });
+            }
+        } catch (error) {
+            console.log('Log error:', error.message);
+        }
+    }
+
+    // Update and delete
+    ticket.status = 'closed';
+    ticket.closedAt = Date.now();
+    ticket.closedBy = interaction.user.id;
+
+    setTimeout(async () => {
+        try {
+            await channel.delete('Container closed by staff');
+            delete ticketData[channel.id];
+        } catch (error) {
+            console.log('Delete error:', error.message);
+        }
+    }, 10000);
+}
+
+async function handleContainerCloseCancel(interaction) {
+    await interaction.update({
+        content: '✅ Container closure cancelled.',
+        components: []
+    });
+}
+
+async function handleContainerAddUser(interaction) {
     const modal = new ModalBuilder()
         .setCustomId('add_user_modal')
-        .setTitle('👥 Add User to Ticket');
+        .setTitle('👥 Add User to Container');
     
-    const userIdInput = new TextInputBuilder()
-        .setCustomId('user_id')
-        .setLabel('User ID or Mention')
-        .setPlaceholder('Enter user ID or @mention')
+    const input = new TextInputBuilder()
+        .setCustomId('user_input')
+        .setLabel('User ID or @mention')
+        .setPlaceholder('Enter user ID or mention')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
     
-    const actionRow = new ActionRowBuilder().addComponents(userIdInput);
-    modal.addComponents(actionRow);
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
     
     await interaction.showModal(modal);
 }
 
-async function handleTicketClose(interaction) {
-    try {
-        const channel = interaction.channel;
-        const ticket = ticketData[channel.id];
-
-        if (!ticket) {
-            return await interaction.reply({
-                content: '❌ This is not a valid ticket channel!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        const member = interaction.member;
-        const isSupportStaff = hasSupportPermission(member);
-        const isServerOwner = interaction.user.id === config.ownerId;
-        const isTicketOwner = interaction.user.id === ticket.userId;
-        
-        if (!isSupportStaff && !isServerOwner) {
-            if (isTicketOwner) {
-                return await interaction.reply({
-                    content: '❌ **Ticket owners cannot close tickets!**\n' +
-                            'Please ask support staff for assistance.\n' +
-                            'You can ping the staff team or wait for their response.',
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-            
-            return await interaction.reply({
-                content: '❌ **Permission Denied!**\n' +
-                        'Only authorized support staff can close tickets.\n' +
-                        'Please contact a staff member if needed.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        const confirmContent = `## 🔒 Confirm Ticket Closure\n` +
-                              `\n` +
-                              `### 📋 Ticket Details\n` +
-                              `**Staff Member:** ${interaction.user}\n` +
-                              `**Ticket ID:** \`${ticket.id}\`\n` +
-                              `**Ticket Owner:** <@${ticket.userId}>\n` +
-                              `**Category:** ${config.categories[ticket.category].name}\n` +
-                              `**Created:** <t:${Math.floor(ticket.createdAt / 1000)}:R>\n` +
-                              `\n` +
-                              `### ⚠️ Warning\n` +
-                              `**This action cannot be undone!**\n` +
-                              `The ticket channel will be permanently deleted.\n` +
-                              `A transcript will be generated and saved.\n` +
-                              `\n` +
-                              `### ❓ Are you sure?\n` +
-                              `Please confirm your action below:`;
-
-        const confirmRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('confirm_close')
-                    .setLabel('✅ Confirm Close')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId('cancel_close')
-                    .setLabel('❌ Cancel')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('❌')
-            );
-
-        await interaction.reply({
-            content: confirmContent,
-            components: [confirmRow],
-            flags: MessageFlags.Ephemeral
-        });
-        
-    } catch (error) {
-        console.error('Error in handleTicketClose:', error);
-        await interaction.reply({
-            content: '❌ An error occurred while processing your request!',
-            flags: MessageFlags.Ephemeral
-        });
-    }
-}
-
-async function handleTicketCloseConfirm(interaction, reason = 'No reason provided') {
-    try {
-        const channel = interaction.channel;
-        const ticket = ticketData[channel.id];
-        
-        if (!ticket) {
-            return await interaction.reply({
-                content: '❌ This is not a ticket channel!',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-        
-        // Double permission check
-        const member = interaction.member;
-        const isSupportStaff = hasSupportPermission(member);
-        const isServerOwner = interaction.user.id === config.ownerId;
-        
-        if (!isSupportStaff && !isServerOwner) {
-            return await interaction.update({
-                content: '❌ You are not authorized to close tickets!',
-                components: []
-            });
-        }
-
-        await interaction.update({
-            content: '🔄 **Closing ticket and generating transcript...**\n' +
-                    'Please wait while we process your request.',
-            components: []
-        });
-
-        try {
-            // Create transcript
-            const messages = await channel.messages.fetch({ limit: 100 });
-            const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-            
-            let transcript = `╔══════════════════════════════════════════════════════════════╗\n`;
-            transcript += `║                    RURYSOFT TICKET LOG                     ║\n`;
-            transcript += `╠══════════════════════════════════════════════════════════════╣\n`;
-            transcript += `║ Ticket ID: ${ticket.id}\n`;
-            transcript += `║ User: ${ticket.userTag} (${ticket.userId})\n`;
-            transcript += `║ Category: ${config.categories[ticket.category].name}\n`;
-            transcript += `║ Created: ${new Date(ticket.createdAt).toLocaleString()}\n`;
-            transcript += `║ Closed: ${new Date().toLocaleString()}\n`;
-            transcript += `║ Closed by: ${interaction.user.tag} (${interaction.user.id})\n`;
-            transcript += `║ Reason: ${reason}\n`;
-            transcript += `╚══════════════════════════════════════════════════════════════╝\n\n`;
-            
-            transcript += `MESSAGE LOG:\n`;
-            transcript += `══════════════════════════════════════════════════════════════\n\n`;
-            
-            sortedMessages.forEach(msg => {
-                const timestamp = msg.createdAt.toLocaleString();
-                const author = msg.author.tag;
-                const content = msg.content || '[Attachment/Embed]';
-                
-                transcript += `[${timestamp}] ${author}:\n${content}\n\n`;
-                if (msg.attachments.size > 0) {
-                    msg.attachments.forEach(att => {
-                        transcript += `   [ATTACHMENT] ${att.url}\n`;
-                    });
-                }
-            });
-            
-            const transcriptBuffer = Buffer.from(transcript, 'utf-8');
-            const attachment = new AttachmentBuilder(transcriptBuffer, { 
-                name: `ticket-${ticket.id}-transcript-${Date.now()}.txt` 
-            });
-            
-            const duration = Math.floor((Date.now() - ticket.createdAt) / (1000 * 60));
-            
-            // FINAL CLOSURE MESSAGE
-            const closeContent = `## 🔒 Ticket Closed\n` +
-                               `\n` +
-                               `### 📋 Closure Details\n` +
-                               `**Closed by:** ${interaction.user}\n` +
-                               `**Ticket ID:** \`${ticket.id}\`\n` +
-                               `**Duration:** ${duration} minutes\n` +
-                               `**Reason:** ${reason}\n` +
-                               `**Transcript:** ✅ Generated and saved\n` +
-                               `\n` +
-                               `### 📊 Ticket Statistics\n` +
-                               `**Messages:** ${sortedMessages.size}\n` +
-                               `**Active Time:** ${duration} minutes\n` +
-                               `**Created:** <t:${Math.floor(ticket.createdAt / 1000)}:F>\n` +
-                               `**Closed:** <t:${Math.floor(Date.now() / 1000)}:F>\n` +
-                               `\n` +
-                               `### ⏳ Next Steps\n` +
-                               `This channel will be deleted in **10 seconds**.\n` +
-                               `The transcript has been saved for record keeping.\n` +
-                               `\n` +
-                               `*Thank you for using RurySoft Support.*`;
-            
-            await channel.send({ 
-                content: closeContent,
-                files: [attachment]
-            });
-            
-            // Send to log channel
-            if (config.logChannelId) {
-                try {
-                    const logChannel = channel.guild.channels.cache.get(config.logChannelId);
-                    if (logChannel) {
-                        const logContent = `## 📋 Ticket Closed - ${ticket.id}\n` +
-                                         `\n` +
-                                         `### 📊 Closure Information\n` +
-                                         `**Ticket ID:** \`${ticket.id}\`\n` +
-                                         `**User:** <@${ticket.userId}> (\`${ticket.userTag}\`)\n` +
-                                         `**Category:** ${config.categories[ticket.category].name}\n` +
-                                         `**Opened:** <t:${Math.floor(ticket.createdAt / 1000)}:R>\n` +
-                                         `**Duration:** ${duration} minutes\n` +
-                                         `**Closed by:** ${interaction.user.tag} (\`${interaction.user.id}\`)\n` +
-                                         `**Reason:** ${reason}\n` +
-                                         `**Messages:** ${sortedMessages.size}\n` +
-                                         `\n` +
-                                         `### 📝 Transcript Summary\n` +
-                                         `Transcript attached to this message.\n` +
-                                         `Channel deleted after 10 seconds.\n` +
-                                         `\n` +
-                                         `*Ticket closure logged at <t:${Math.floor(Date.now() / 1000)}:T>*`;
-                        
-                        await logChannel.send({ 
-                            content: logContent,
-                            files: [attachment]
-                        });
-                    }
-                } catch (logError) {
-                    console.log('Log error:', logError);
-                }
-            }
-            
-            // Update ticket data
-            ticket.status = 'closed';
-            ticket.closedAt = Date.now();
-            ticket.closedBy = interaction.user.id;
-            ticket.closeReason = reason;
-            
-            // Wait 10 seconds and delete
-            setTimeout(async () => {
-                try {
-                    await channel.delete(`Ticket closed by staff: ${interaction.user.tag}`);
-                    delete ticketData[channel.id];
-                } catch (deleteError) {
-                    console.error('Error deleting channel:', deleteError);
-                }
-            }, 10000);
-            
-        } catch (error) {
-            console.error('Error closing ticket:', error);
-            await interaction.followUp({
-                content: '❌ Error closing ticket! Please try again.',
-                flags: MessageFlags.Ephemeral
-            });
-        }
-    } catch (error) {
-        console.error('Error in handleTicketCloseConfirm:', error);
-    }
-}
-
-async function handleTicketCloseCancel(interaction) {
-    await interaction.update({
-        content: '✅ **Ticket closure cancelled.**\n' +
-                'The ticket remains open and active.',
-        components: []
+async function handleContainerTranscript(interaction) {
+    await interaction.reply({
+        content: '📄 Transcript feature coming soon...',
+        flags: MessageFlags.Ephemeral
     });
 }
 
