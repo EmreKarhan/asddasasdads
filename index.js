@@ -583,13 +583,15 @@ async function handleTicketCloseConfirm(interaction) {
         const channel = interaction.channel;
         const ticket = ticketData[channel.id];
 
+        // Ticket kontrol
         if (!ticket) {
             return await interaction.reply({
-                content: '<:GreenClose:1465658452729921589> This is not a ticket channel!',
+                content: '<:GreenClose:1465658452729921589> This is not a valid ticket channel!',
                 flags: MessageFlags.Ephemeral
             });
         }
 
+        // Yetki kontrol
         const member = interaction.member;
         const isSupportStaff = hasSupportPermission(member);
         const isServerOwner = interaction.user.id === config.ownerId;
@@ -603,7 +605,7 @@ async function handleTicketCloseConfirm(interaction) {
                         components: [
                             {
                                 type: 10,
-                                content: '<:GreenClose:1465658452729921589> You are not authorized to close tickets!'
+                                content: '<:GreenClose:1465658452729921589> You are not authorized to close this ticket!'
                             }
                         ]
                     }
@@ -611,7 +613,7 @@ async function handleTicketCloseConfirm(interaction) {
             });
         }
 
-        // ✅ SADECE TIKLAYAN GÖRÜR
+        // 🔒 SADECE TIKLAYAN GÖRÜR (EPHEMERAL)
         await interaction.update({
             flags: 32768,
             components: [
@@ -627,38 +629,87 @@ async function handleTicketCloseConfirm(interaction) {
             ]
         });
 
-        // ✅ LOG KANALI
+        // ================== MESAJLARI ÇEK ==================
+        const messages = await channel.messages.fetch({ limit: 100 });
+        const sortedMessages = messages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+        // ================== TXT LOG OLUŞTUR ==================
+        const logLines = [];
+
+        logLines.push('==============================');
+        logLines.push('        RUZYSOFT TICKET LOG   ');
+        logLines.push('==============================');
+        logLines.push(`Ticket ID   : ${ticket.id}`);
+        logLines.push(`Category    : ${config.categories[ticket.category]?.name}`);
+        logLines.push(`Opened By   : ${ticket.userTag} (${ticket.userId})`);
+        logLines.push(`Closed By   : ${interaction.user.tag} (${interaction.user.id})`);
+        logLines.push(`Opened At   : ${new Date(ticket.createdAt).toLocaleString()}`);
+        logLines.push(`Closed At   : ${new Date().toLocaleString()}`);
+        logLines.push(`Channel     : ${channel.name}`);
+        logLines.push('------------------------------');
+        logLines.push('Messages:');
+        logLines.push('------------------------------');
+
+        sortedMessages.forEach(msg => {
+            const time = msg.createdAt.toLocaleString();
+            const author = msg.author.tag;
+            const content = msg.content || '[Attachment/Embed]';
+
+            logLines.push(`[${time}] ${author}: ${content}`);
+
+            if (msg.attachments.size > 0) {
+                msg.attachments.forEach(att => {
+                    logLines.push(`   [Attachment] ${att.url}`);
+                });
+            }
+        });
+
+        logLines.push('==============================');
+
+        const logText = logLines.join('\n');
+
+        // ================== TXT DOSYASI YAZ ==================
+        const fileName = `ticket-${ticket.id}.txt`;
+        const filePath = path.join(__dirname, fileName);
+
+        fs.writeFileSync(filePath, logText, 'utf8');
+
+        // ================== LOG KANALINA AT ==================
         const logChannel = interaction.guild.channels.cache.get(config.ticketLogChannelId);
+
         if (logChannel) {
             await logChannel.send({
                 content:
                     `🔒 **Ticket Closed**\n` +
                     `👤 Closed by: ${interaction.user.tag} (${interaction.user.id})\n` +
                     `🎫 Ticket ID: ${ticket.id}\n` +
-                    `📂 Category: ${config.categories[ticket.category]?.name}\n` +
-                    `📁 Channel: ${channel.name}\n` +
-                    `🕒 Opened: <t:${Math.floor(ticket.createdAt / 1000)}:R>\n` +
-                    `🕒 Closed: <t:${Math.floor(Date.now() / 1000)}:R>`
+                    `📁 Channel: ${channel.name}`,
+                files: [filePath]
             });
         }
 
-        // ticket state
+        // ================== DOSYAYI SİL ==================
+        fs.unlink(filePath, err => {
+            if (err) console.error('Log file cleanup error:', err);
+        });
+
+        // ================== TICKET STATE ==================
         ticket.status = 'closed';
         ticket.closedAt = Date.now();
         ticket.closedBy = interaction.user.id;
 
-        // ✅ 10 sn sonra sil
+        // ================== 10 SN SONRA KANALI SİL ==================
         setTimeout(async () => {
             try {
                 await channel.delete(`Ticket closed by ${interaction.user.tag}`);
                 delete ticketData[channel.id];
-            } catch (e) {
-                console.error('Channel delete error:', e);
+            } catch (err) {
+                console.error('Channel delete error:', err);
             }
         }, 10000);
 
-    } catch (err) {
-        console.error('REAL close error:', err);
+    } catch (error) {
+        console.error('Error in handleTicketCloseConfirm:', error);
 
         if (!interaction.replied && !interaction.deferred) {
             await interaction.reply({
