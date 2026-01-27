@@ -672,10 +672,10 @@ async function handleTicketCloseConfirm(interaction) {
             try {
                 const logChannel = await interaction.guild.channels.fetch(config.logChannelId).catch(() => null);
                 if (logChannel && logChannel.isTextBased()) {
+        
                     const attachment = new AttachmentBuilder(filePath)
-                        .setName(fileName)
-                        .setDescription(`Log for ticket ${ticket.id}`);
-                    
+                        .setName(fileName);
+        
                     const logMessage = {
                         flags: 32768,
                         components: [
@@ -687,7 +687,7 @@ async function handleTicketCloseConfirm(interaction) {
                                         items: [
                                             {
                                                 media: {
-                                                    url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png?ex=69794904&is=6977f784&hm=1c7c533a04b3a1c49ee89bab5f61fc80ec1a5dcc0dcfc25aaf91549a7d40c88f&'
+                                                    url: 'https://cdn.discordapp.com/attachments/1462207492275572883/1465487422149103667/6b8b7fd9-735e-414b-ad83-a9ca8adeda40.png'
                                                 }
                                             }
                                         ]
@@ -702,7 +702,12 @@ async function handleTicketCloseConfirm(interaction) {
                                     },
                                     {
                                         type: 10,
-                                        content: `👤 **User:** <@${ticket.userId}>\n🛠️ **Closed by:** <@${interaction.user.id}>\n🎫 **Ticket ID:** ${ticket.id}\n📁 **Category:** ${config.categories[ticket.category]?.name || 'Unknown'}\n⏱️ **Duration:** ${Math.round((Date.now() - ticket.createdAt) / 60000)} minutes`
+                                        content:
+                                            `👤 **User:** <@${ticket.userId}>\n` +
+                                            `🛠️ **Closed by:** <@${interaction.user.id}>\n` +
+                                            `🎫 **Ticket ID:** ${ticket.id}\n` +
+                                            `📁 **Category:** ${config.categories[ticket.category]?.name || 'Unknown'}\n` +
+                                            `⏱️ **Duration:** ${Math.round((Date.now() - ticket.createdAt) / 60000)} minutes`
                                     },
                                     {
                                         type: 14,
@@ -710,14 +715,14 @@ async function handleTicketCloseConfirm(interaction) {
                                     },
                                     {
                                         type: 10,
-                                        content: `📎 **Log File:** ${fileName}`
+                                        content: '📎 **Log file attached below**'
                                     }
                                 ]
                             }
                         ],
                         files: [attachment]
                     };
-                    
+        
                     await logChannel.send(logMessage);
                     console.log(`Ticket closure log sent to ${logChannel.name}`);
                 }
@@ -725,6 +730,7 @@ async function handleTicketCloseConfirm(interaction) {
                 console.log('Ticket close log error:', e.message);
             }
         }
+
 
         // Geçici log dosyasını sil
         setTimeout(() => fs.unlink(filePath, () => {}), 5000);
